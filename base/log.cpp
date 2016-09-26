@@ -47,7 +47,7 @@ void log_msg(const std::string& msg, LOG_TYPE type) {
     }
 
     gPrintLock.lock();
-    std::cout << prefix << msg << "\n";
+    std::cout << prefix << msg << std::endl;
     gPrintLock.unlock();
 }
 

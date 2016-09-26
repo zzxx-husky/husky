@@ -21,6 +21,8 @@ add_library(aggregator-objs OBJECT
     aggregator_factory.cpp)
 husky_default_properties(aggregator-objs)
 
+include(thirdparty.cmake)
+
 # Combine lib-objs
 set(lib-objs $<TARGET_OBJECTS:aggregator-objs>)
 

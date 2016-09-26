@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/log.hpp"
 #include "core/constants.hpp"
 #include "core/network.hpp"
 #include "core/utils.hpp"
