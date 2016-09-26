@@ -7,11 +7,8 @@ from operation import Operation, OperationParam
 from datareceiver import Receiver
 from bindings.backend.python.serializers import Serializer, MarshalSerializer, PickleSerializer, AutoSerializer, CompressedSerializer
 
-import sys
-
 # three types of lists:
 # HuskyList, PyHuskyList, HuskyObjList
-
 
 def pyhusky_start(master_host=None, master_port=None, params={}):
     # create a config file
@@ -44,7 +41,6 @@ def load(path):
         param["Protocol"] = "hdfs"
     else:
         raise Exception("ERROR: Cannot resolve the protocol of the load path")
-
     hlist.pending_op = Operation("Functional#load_py", param, [])
     return hlist
 
