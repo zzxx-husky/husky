@@ -22,6 +22,7 @@
 
 #include "base/log.hpp"
 #include "base/serialization.hpp"
+#include "base/session_local.hpp"
 #include "core/config.hpp"
 #include "core/constants.hpp"
 #include "core/context.hpp"
@@ -62,6 +63,7 @@ void run_job(const std::function<void()>& job) {
     // Initialize coordinator
     Context::get_coordinator().serve();
 
+    base::SessionLocal::initialize();
     // Initialize worker threads
     std::vector<boost::thread*> threads;
     int local_id = 0;
@@ -77,6 +79,7 @@ void run_job(const std::function<void()>& job) {
 
             job();
 
+            base::SessionLocal::thread_finalize();
             Context::finalize_local();
 
             base::BinStream finish_signal;
@@ -95,6 +98,7 @@ void run_job(const std::function<void()>& job) {
     for (int i = 0; i < threads.size(); i++)
         delete mailboxes[i];
 
+    base::SessionLocal::finalize();
     Context::finalize_global();
 }
 

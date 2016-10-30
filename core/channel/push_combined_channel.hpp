@@ -45,7 +45,8 @@ class PushCombinedChannel : public Source2ObjListChannel<DstObjT> {
     ~PushCombinedChannel() override {
         ShuffleCombinerFactory::remove_shuffle_combiner(this->channel_id_);
 
-        this->src_ptr_->deregister_outchannel(this->channel_id_);
+        // TODO(Louis): to design a factory for input formats
+        // this->src_ptr_->deregister_outchannel(this->channel_id_);
         this->dst_ptr_->deregister_inchannel(this->channel_id_);
     }
 
