@@ -134,15 +134,13 @@ bool WorkerDriver::new_instr_python_py(WorkerDriverInfo& workerdriver_info, OpDA
     auto leave = opdag.get_leaves()[0];
     if (leave->get_op().get_name() == "Functional#load_py") {
         std::string protocol = leave->get_op().get_param("Protocol");
-        if (protocol == "hdfs") {
-#ifdef WITH_HDFS
+        if (protocol == "hdfs" || protocol =="nfs") {
             husky::io::LineInputFormat infmt;
             const std::string path = leave->get_op().get_param("Path");
             infmt.set_input(path);
             husky::load(infmt, [&](boost::string_ref& chunk) {
                 workerdriver_info.py_connector->send_string(chunk.to_string());
             });
-#endif
         } else if (protocol == "mongodb") {
 #ifdef WITH_MONGODB
             husky::io::MongoDBInputFormat infmt;

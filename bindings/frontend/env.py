@@ -7,6 +7,8 @@ from operation import Operation, OperationParam
 from datareceiver import Receiver
 from bindings.backend.python.serializers import Serializer, MarshalSerializer, PickleSerializer, AutoSerializer, CompressedSerializer
 
+import sys
+
 # three types of lists:
 # HuskyList, PyHuskyList, HuskyObjList
 
@@ -32,11 +34,17 @@ def load(path):
     # In this case the list represents a list of std::string
     hlist = PyHuskyList()
     param = {
-        "Type":"cpp",
-        "Protocol": "hdfs",
+        "Type": "cpp",
         "Path": path,
         OperationParam.list_str: hlist.list_name
     }
+    if path.startswith("nfs:"):
+        param["Protocol"] = "nfs"
+    elif path.startswith("hdfs"):
+        param["Protocol"] = "hdfs"
+    else:
+        raise Exception("ERROR: Cannot resolve the protocol of the load path")
+
     hlist.pending_op = Operation("Functional#load_py", param, [])
     return hlist
 
