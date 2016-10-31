@@ -20,7 +20,6 @@ def pyhusky_start(master_host=None, master_port=None, params={}):
     # Set serializer {MarshalSerializer(), PickleSerializer(), AutoSerializer(), CompressedSerializer(PickleSerializer())}
     Serializer.serializer = PickleSerializer()
 
-
 def pyhusky_stop():
     config.conf = None
     session.end_session()
