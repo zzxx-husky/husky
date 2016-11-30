@@ -18,6 +18,8 @@
 #include "bindings/itc.hpp"
 #include "bindings/backend/library/register.hpp"
 
+#include "base/log.hpp"
+
 namespace husky {
 // PythonSocket
 void PythonSocket::init(int wid) {

@@ -15,7 +15,7 @@ def pyhusky_start(master_host=None, master_port=None, params={}):
     config.conf = config.Config(master_host, master_port, params)
 
     # Reigster receiver
-    # Receiver.register()
+    Receiver.register()
 
     # Set serializer {MarshalSerializer(), PickleSerializer(), AutoSerializer(), CompressedSerializer(PickleSerializer())}
     Serializer.serializer = PickleSerializer()

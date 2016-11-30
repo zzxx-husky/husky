@@ -56,6 +56,11 @@ void WorkerDriver::init_worker_instr_handler_map() {
     worker_instr_handler_map["new_instr_py"] = new_instr_py;
 }
 
+void WorkerDriver::register_handler() {
+    // init all the handlers
+    RegisterFunction::register_cpp_handlers();
+}
+
 void WorkerDriver::add_handler(const std::string& name,
         std::function<void(const Operation & op, PythonSocket & python_socket, ITCWorker & daemon_socket)> handler) {
     assert(worker_operator_handler_map.find(name) == worker_operator_handler_map.end() && "handler exists in workerdriver");

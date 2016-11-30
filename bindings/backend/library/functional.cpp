@@ -57,7 +57,7 @@ void PyHuskyFunctional::reduce_end_handler(PythonSocket & python_socket, ITCWork
     husky::ObjList<GeneralObject> reduce_list;
     // create ch
     auto& reduce_ch =
-        husky::ChannelFactory::create_push_combined_channel<std::string, husky::SumCombiner<std::string>>(reduce_list, reduce_list);
+        husky::ChannelStore::create_push_combined_channel<std::string, husky::SumCombiner<std::string>>(reduce_list, reduce_list);
 
     reduce_ch.push(value, 0);
     reduce_ch.flush();
@@ -83,7 +83,7 @@ void PyHuskyFunctional::count_end_handler(PythonSocket & python_socket, ITCWorke
     husky::ObjList<GeneralObject> count_list;
     // create ch
     auto& count_ch =
-        husky::ChannelFactory::create_push_combined_channel<int, husky::SumCombiner<int>>(count_list, count_list);
+        husky::ChannelStore::create_push_combined_channel<int, husky::SumCombiner<int>>(count_list, count_list);
 
     count_ch.push(value, 0);
     count_ch.flush();
@@ -115,10 +115,10 @@ void PyHuskyFunctional::distinct_handler(PythonSocket & python_socket, ITCWorker
     // receive name
     std::string name = zmq_recv_string(python_socket.pipe_from_python);
     // create objlist
-    auto& distinct_list = ObjListFactory::create_objlist<ReduceObject>(name);
+    auto& distinct_list = ObjListStore::create_objlist<ReduceObject>(name);
     // create channel
     auto& distinct_ch =
-        husky::ChannelFactory::create_push_combined_channel<std::string, husky::SumCombiner<std::string>>(distinct_list, distinct_list, name);
+        husky::ChannelStore::create_push_combined_channel<std::string, husky::SumCombiner<std::string>>(distinct_list, distinct_list, name);
     // receive the num of key-value pairs
     int num = std::stoi(zmq_recv_string(python_socket.pipe_from_python));
     for (int i = 0; i < num; i++) {
@@ -131,9 +131,9 @@ void PyHuskyFunctional::distinct_end_handler(PythonSocket & python_socket, ITCWo
     // receive name
     std::string name = zmq_recv_string(python_socket.pipe_from_python);
     // get channel
-    auto& distinct_end_ch = ChannelFactoryBase::get_push_combined_channel<std::string, SumCombiner<std::string>, ReduceObject>(name);
+    auto& distinct_end_ch = ChannelStoreBase::get_push_combined_channel<std::string, SumCombiner<std::string>, ReduceObject>(name);
     // get objlist
-    auto& distinct_end_list = ObjListFactory::get_objlist<ReduceObject>(name);
+    auto& distinct_end_list = ObjListStore::get_objlist<ReduceObject>(name);
 
     // flush
     distinct_end_ch.flush();
@@ -144,8 +144,8 @@ void PyHuskyFunctional::distinct_end_handler(PythonSocket & python_socket, ITCWo
 
     zmq_send_string(python_socket.pipe_to_python, "");
 
-    ChannelFactoryBase::drop_channel(name);
-    ObjListFactory::drop_objlist(name);
+    ChannelStoreBase::drop_channel(name);
+    ObjListStore::drop_objlist(name);
 }
 void PyHuskyFunctional::difference_handler(PythonSocket & python_socket, ITCWorker & daemon_socket) {
     // receive name
@@ -159,13 +159,13 @@ void PyHuskyFunctional::difference_handler(PythonSocket & python_socket, ITCWork
     }
 
     // create objlist
-    auto& diff_list = ObjListFactory::has_objlist(name)
-        ? ObjListFactory::get_objlist<ReduceObject>(name) : ObjListFactory::create_objlist<ReduceObject>(name);
+    auto& diff_list = ObjListStore::has_objlist(name)
+        ? ObjListStore::get_objlist<ReduceObject>(name) : ObjListStore::create_objlist<ReduceObject>(name);
 
     // create channel
-    auto& diff_ch = husky::ChannelFactory::has_channel(name)
-        ? ChannelFactoryBase::get_push_combined_channel<int, SumCombiner<int>, ReduceObject>(name)
-        : husky::ChannelFactory::create_push_combined_channel<int, husky::SumCombiner<int>>(diff_list, diff_list, name);
+    auto& diff_ch = husky::ChannelStore::has_channel(name)
+        ? ChannelStoreBase::get_push_combined_channel<int, SumCombiner<int>, ReduceObject>(name)
+        : husky::ChannelStore::create_push_combined_channel<int, husky::SumCombiner<int>>(diff_list, diff_list, name);
 
     // receive the num of key-value pairs
     int num = std::stoi(zmq_recv_string(python_socket.pipe_from_python));
@@ -178,9 +178,9 @@ void PyHuskyFunctional::difference_end_handler(PythonSocket & python_socket, ITC
     // receive name
     std::string name = zmq_recv_string(python_socket.pipe_from_python);
     // get channel
-    auto& diff_end_ch = ChannelFactoryBase::get_push_combined_channel<int, SumCombiner<int>, ReduceObject>(name);
+    auto& diff_end_ch = ChannelStoreBase::get_push_combined_channel<int, SumCombiner<int>, ReduceObject>(name);
     // get objlist
-    auto& diff_end_list = ObjListFactory::get_objlist<ReduceObject>(name);
+    auto& diff_end_list = ObjListStore::get_objlist<ReduceObject>(name);
 
     // flush
     diff_end_ch.flush();
@@ -195,18 +195,18 @@ void PyHuskyFunctional::difference_end_handler(PythonSocket & python_socket, ITC
 
     zmq_send_string(python_socket.pipe_to_python, "");
 
-    ChannelFactoryBase::drop_channel(name);
-    ObjListFactory::drop_objlist(name);
+    ChannelStoreBase::drop_channel(name);
+    ObjListStore::drop_objlist(name);
 }
 
 void PyHuskyFunctional::reduce_by_key_handler(PythonSocket & python_socket, ITCWorker & daemon_socket) {
     // receive name
     std::string name = zmq_recv_string(python_socket.pipe_from_python);
     // create objlist
-    auto& reduce_list = ObjListFactory::create_objlist<ReduceObject>(name);
+    auto& reduce_list = ObjListStore::create_objlist<ReduceObject>(name);
     // create channel
     auto& reduce_ch =
-        husky::ChannelFactory::create_push_channel<std::string>(reduce_list, reduce_list, name);
+        husky::ChannelStore::create_push_channel<std::string>(reduce_list, reduce_list, name);
     // receive the num of key-value pairs
     int num = std::stoi(zmq_recv_string(python_socket.pipe_from_python));
     for (int i = 0; i < num; i++) {
@@ -220,9 +220,9 @@ void PyHuskyFunctional::reduce_by_key_end_handler(PythonSocket & python_socket, 
     // receive name
     std::string name = zmq_recv_string(python_socket.pipe_from_python);
     // get channel
-    auto& reduce_end_ch =  husky::ChannelFactory::get_push_channel<std::string, ReduceObject>(name);
+    auto& reduce_end_ch =  husky::ChannelStore::get_push_channel<std::string, ReduceObject>(name);
     // get objlist
-    auto& reduce_end_list = ObjListFactory::get_objlist<ReduceObject>(name);
+    auto& reduce_end_list = ObjListStore::get_objlist<ReduceObject>(name);
 
     // flush
     reduce_end_ch.flush();
@@ -238,8 +238,8 @@ void PyHuskyFunctional::reduce_by_key_end_handler(PythonSocket & python_socket, 
 
     zmq_send_string(python_socket.pipe_to_python, "");
 
-    ChannelFactoryBase::drop_channel(name);
-    ObjListFactory::drop_objlist(name);
+    ChannelStoreBase::drop_channel(name);
+    ObjListStore::drop_objlist(name);
 }
 #ifdef WITH_HDFS
 void PyHuskyFunctional::write_to_hdfs_handler(PythonSocket & python_socket, ITCWorker & daemon_socket) {

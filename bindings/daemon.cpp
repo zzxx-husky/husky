@@ -21,6 +21,7 @@ int main(int argc, char ** argv) {
     husky::WorkerDriver::init_worker_instr_handler_map();
     husky::DaemonDriver::init_daemon_handler_map();
     // Register the handlers
+    husky::WorkerDriver::register_handler();
     husky::PythonConnector::register_handler();
     husky::ThreadConnector::register_handler();
 
@@ -28,6 +29,11 @@ int main(int argc, char ** argv) {
     std::vector<std::string> args;
     args.push_back("hdfs_namenode");
     args.push_back("hdfs_namenode_port");
+    // args.push_back("train");
+    // args.push_back("test");
+    args.push_back("n_iter");
+    args.push_back("alpha");
+    args.push_back("lambda");
     husky::DaemonDriver::daemon_run(argc, argv, args);
 
     return 0;

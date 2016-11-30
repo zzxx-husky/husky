@@ -22,6 +22,7 @@ class ThreadConnector;
 class RegisterFunction {
 public:
     static void register_py_handlers();
+    static void register_cpp_handlers();
     static void register_daemon_handlers();
 };
 }  // namespace husky

@@ -182,7 +182,6 @@ void load_data(std::string url, ObjList<LabeledPointHObj<FeatureT, LabelT, is_sp
     }
     husky::load(infmt, parser);
 }
-
 }  // namespace ml
 }  // namespace lib
 }  // namespace husky

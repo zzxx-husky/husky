@@ -1,12 +1,12 @@
 from binstream import BinStream
-# from bindings.frontend.library.register import register
+from bindings.frontend.library.register import register
 from bindings.backend.python.serializers import Serializer
 
 class Receiver:
     receiver_map = dict()
-    # @staticmethod
-    # def register():
-    #     register(Receiver.receiver_map)
+    @staticmethod
+    def register():
+        register(Receiver.receiver_map)
 
     @staticmethod
     def pythonbackend_receiver(reply):

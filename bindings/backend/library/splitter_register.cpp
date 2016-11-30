@@ -29,5 +29,23 @@ void splitter_register() {
     OperationSplitter::add_splitter("Functional#collect_py", OperationSplitter::simple_split);
     OperationSplitter::add_splitter("Functional#reduce_py", OperationSplitter::simple_split);
     OperationSplitter::add_splitter("Functional#difference_py", OperationSplitter::difference);
+
+    // Linear Regression
+    OperationSplitter::add_splitter("LinearRegressionModel#LinearR_init_py", OperationSplitter::load);
+    OperationSplitter::add_splitter("LinearRegressionModel#LinearR_load_hdfs_py", OperationSplitter::load);
+    OperationSplitter::add_splitter("LinearRegressionModel#LinearR_load_pyhlist_py", OperationSplitter::simple_split);
+    OperationSplitter::add_splitter("LinearRegressionModel#LinearR_train_py", OperationSplitter::load);
+
+    // SVM
+    OperationSplitter::add_splitter("SVMModel#SVM_init_py", OperationSplitter::load);
+    OperationSplitter::add_splitter("SVMModel#SVM_load_hdfs_py", OperationSplitter::load);
+    OperationSplitter::add_splitter("SVMModel#SVM_load_pyhlist_py", OperationSplitter::simple_split);
+    OperationSplitter::add_splitter("SVMModel#SVM_train_py", OperationSplitter::load);
+
+    // Logistic Regression
+    OperationSplitter::add_splitter("LogisticRegressionModel#LogisticR_init_py", OperationSplitter::load);
+    OperationSplitter::add_splitter("LogisticRegressionModel#LogisticR_load_hdfs_py", OperationSplitter::load);
+    OperationSplitter::add_splitter("LogisticRegressionModel#LogisticR_load_pyhlist_py", OperationSplitter::simple_split);
+    OperationSplitter::add_splitter("LogisticRegressionModel#LogisticR_train_py", OperationSplitter::load);
 }
 }  // namespace husky
