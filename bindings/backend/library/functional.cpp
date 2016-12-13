@@ -57,14 +57,16 @@ void PyHuskyFunctional::reduce_end_handler(PythonSocket & python_socket, ITCWork
     husky::ObjList<GeneralObject> reduce_list;
     // create ch
     auto& reduce_ch =
-        husky::ChannelStore::create_push_combined_channel<std::string, husky::SumCombiner<std::string>>(reduce_list, reduce_list);
+        husky::ChannelStore::create_push_channel<std::string>(reduce_list, reduce_list);
 
     reduce_ch.push(value, 0);
     reduce_ch.flush();
 
     list_execute(reduce_list, [&](GeneralObject& r) {
-        auto& msg = reduce_ch.get(r);
-        zmq_send_string(python_socket.pipe_to_python, msg);
+        auto& msgs = reduce_ch.get(r);
+        for (auto& msg: msgs) { 
+            zmq_send_string(python_socket.pipe_to_python, msg);
+        }
     });
 
     zmq_send_string(python_socket.pipe_to_python, "");
