@@ -60,6 +60,9 @@ public:
 
     void send_string(const std::string& data);
     void send_binstream(BinStream& data);
+    // BP
+    std::string recv_string();
+    // BP
 
     /// register handlers to handle messages from python
     static void add_handler(const std::string& name,

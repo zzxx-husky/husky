@@ -36,3 +36,31 @@ class GlobalSocket:
     @staticmethod
     def recv():
         return GlobalSocket.pipe_from_cpp.recv()
+
+# N2N
+import threading
+
+class GlobalN2NSocket:
+    @staticmethod
+    def init_socket():
+        ctx = zmq.Context()
+        comm_port = int(GlobalSocket.recv()) + 1
+        GlobalN2NSocket.puller = ctx.socket(zmq.PULL)
+        GlobalN2NSocket.puller.bind("tcp://0.0.0.0:" + str(comm_port + GlobalVar.local_id))
+        GlobalN2NSocket.pushers = []
+        for i in xrange(int(GlobalSocket.recv())):
+            host = "tcp://" + GlobalSocket.recv() + ":"
+            for j in xrange(int(GlobalSocket.recv())):
+                sock = ctx.socket(zmq.PUSH)
+                sock.connect(host + str(comm_port + j))
+                GlobalN2NSocket.pushers.append(sock)
+
+    @staticmethod
+    def send(dst, msg):
+        GlobalN2NSocket.pushers[dst].send(msg)
+
+    @staticmethod
+    def recv():
+        return GlobalN2NSocket.puller.recv()
+
+# N2N

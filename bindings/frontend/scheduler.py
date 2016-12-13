@@ -69,10 +69,11 @@ def submit_task(bin_dag, op):
                 break
         elif status == "data":
             ret = data_receiver(reply,  op)
-            if result is None:
-                result = ret
-            else:
-                result += ret
+            if ret is not None:
+                if result is None:
+                    result = ret
+                else:
+                    result += ret
 
     return result
 

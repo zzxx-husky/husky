@@ -2,7 +2,7 @@ import sys
 import json
 import cPickle
 import cloudpickle
-from bindings.backend.python.globalvar import GlobalVar, GlobalSocket, OperationParam
+from bindings.backend.python.globalvar import GlobalVar, GlobalSocket, OperationParam, GlobalN2NSocket
 from bindings.backend.python.serializers import Serializer
 from bindings.frontend.binstream import BinStream
 
@@ -52,7 +52,9 @@ class Load:
                 break
             else:
                 # yield [eval(chunk)]  # May use this when loading repr-ed data
-                yield [chunk]
+                # yield [chunk]
+                GlobalSocket.pipe_to_cpp.send("")
+                yield chunk.split("\n");
 
     @staticmethod
     def load_disablepipeline(op):
@@ -242,14 +244,17 @@ class UnCache:
 class ReduceByKey:
     @staticmethod
     def register():
-        GlobalVar.name_to_func["Functional#reduce_by_key_py"] = ReduceByKey.func
-        GlobalVar.name_to_prefunc["Functional#reduce_by_key_py"] = ReduceByKey.prefunc
+        # GlobalVar.name_to_func["Functional#reduce_by_key_py"] = ReduceByKey.func
+        # GlobalVar.name_to_prefunc["Functional#reduce_by_key_py"] = ReduceByKey.prefunc
         # GlobalVar.name_to_postfunc["Functional#reduce_by_key_py"] = ReduceByKey.postfunc_no_combine
-        GlobalVar.name_to_postfunc["Functional#reduce_by_key_py"] = ReduceByKey.postfunc_combine_1
+        # GlobalVar.name_to_postfunc["Functional#reduce_by_key_py"] = ReduceByKey.postfunc_combine_1
+        GlobalVar.name_to_func["Functional#reduce_by_key_py"] = ReduceByKey.func_hashmap
+        GlobalVar.name_to_prefunc["Functional#reduce_by_key_py"] = ReduceByKey.prefunc_hashmap
+        GlobalVar.name_to_postfunc["Functional#reduce_by_key_py"] = ReduceByKey.postfunc_combine_n2n
         GlobalVar.name_to_type["Functional#reduce_by_key_py"] = GlobalVar.actiontype
         
         if GlobalVar.disablePipeline == False:
-            GlobalVar.name_to_func["Functional#reduce_by_key_end_py"] = ReduceByKey.load
+            GlobalVar.name_to_func["Functional#reduce_by_key_end_py"] = ReduceByKey.load_n2n
         else:
             GlobalVar.name_to_func["Functional#reduce_by_key_end_py"] = ReduceByKey.load_disablepipeline
         GlobalVar.name_to_prefunc["Functional#reduce_by_key_end_py"] = ReduceByKey.end_prefunc
@@ -302,6 +307,66 @@ class ReduceByKey:
         GlobalSocket.pipe_to_cpp.send(str(len(send_buffer)/2))
         for x in send_buffer:
             GlobalSocket.pipe_to_cpp.send(x)
+
+# N2N
+    @staticmethod
+    def func_hashmap(op, data):
+        store = GlobalVar.reduce_by_key_store
+        for x in data:
+            assert (type(x) is tuple or type(x) is list) and len(x) is 2
+            if store.has_key(x[0]):
+                store[x[0]] = op.func(x[1], store[x[0]])
+            else:
+                store[x[0]] = x[1]
+
+    @staticmethod
+    def prefunc_hashmap(op):
+        GlobalVar.reduce_by_key_store = {}
+        GlobalVar.reduce_by_key_list = op.op_param[OperationParam.list_str]
+        op.func = cloudpickle.loads(op.op_param[OperationParam.lambda_str]) # store lambda
+ 
+            
+    @staticmethod
+    def postfunc_combine_n2n(op):
+        # send out reduce_by_key_store
+        GlobalSocket.pipe_to_cpp.send("Functional#reduce_by_key")
+        GlobalSocket.pipe_to_cpp.send(GlobalVar.reduce_by_key_list)
+
+        """ Attempt4: Hash Map """
+        GlobalSocket.pipe_to_cpp.send("0")
+        send_buffer = [[] for i in xrange(GlobalVar.num_workers)]
+        if GlobalVar.reduce_by_key_store:
+            for x,y in GlobalVar.reduce_by_key_store.items():
+                dst = hash(x) % GlobalVar.num_workers
+                send_buffer[dst].append((x, y))
+        for i in xrange(GlobalVar.num_workers):
+            GlobalN2NSocket.send(i, Serializer.dumps(send_buffer[i]))
+
+    @staticmethod
+    def load_n2n(op):
+        GlobalSocket.pipe_to_cpp.send("Functional#reduce_by_key_end")
+        GlobalSocket.pipe_to_cpp.send(op.op_param[OperationParam.list_str])
+
+        store = Serializer.loads(GlobalN2NSocket.recv())
+        for i in xrange(1, GlobalVar.num_workers):
+            store.extend(Serializer.loads(GlobalN2NSocket.recv()))
+
+        """ Attempt 1: init """
+        func = op.func
+        store.sort(key=lambda x:x[0])
+        if store:
+            prev_x, prev_y = store[0]
+            for x,y in islice(store, 1, None):
+                if x != prev_x:
+                    # buff.append((prev_x, prev_y))
+                    yield [(prev_x, prev_y)]
+                    prev_x, prev_y = x, y
+                else:
+                    prev_y = func(prev_y, y)
+            # buff.append((prev_x, prev_y))
+            yield [(prev_x, prev_y)]
+
+# N2N
 
     @staticmethod
     def postfunc_combine_2(op):

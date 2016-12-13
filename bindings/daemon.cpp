@@ -31,9 +31,9 @@ int main(int argc, char ** argv) {
     args.push_back("hdfs_namenode_port");
     // args.push_back("train");
     // args.push_back("test");
-    args.push_back("n_iter");
-    args.push_back("alpha");
-    args.push_back("lambda");
+    // args.push_back("n_iter");
+    // args.push_back("alpha");
+    // args.push_back("lambda");
     husky::DaemonDriver::daemon_run(argc, argv, args);
 
     return 0;

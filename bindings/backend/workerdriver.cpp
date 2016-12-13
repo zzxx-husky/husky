@@ -143,9 +143,28 @@ bool WorkerDriver::new_instr_python_py(WorkerDriverInfo& workerdriver_info, OpDA
             husky::io::LineInputFormat infmt;
             const std::string path = leave->get_op().get_param("Path");
             infmt.set_input(path);
-            husky::load(infmt, [&](boost::string_ref& chunk) {
+            /* husky::load(infmt, [&](boost::string_ref& chunk) {
                 workerdriver_info.py_connector->send_string(chunk.to_string());
+            }); */
+
+            // buffered send
+            std::string buf;
+            unsigned num = 0;
+            husky::load(infmt, [&](boost::string_ref& chunk) {
+                buf.append(chunk.data(), chunk.size());
+                if (++num == 1024) {
+                    num = 0;
+                    workerdriver_info.py_connector->send_string(buf);
+                    buf.clear();
+                    workerdriver_info.py_connector->recv_string();
+                } else {
+                    buf.push_back('\n');
+                }
             });
+            if (num != 0) {
+                workerdriver_info.py_connector->send_string(buf);
+                workerdriver_info.py_connector->recv_string();
+            }
         } else if (protocol == "mongodb") {
 #ifdef WITH_MONGODB
             husky::io::MongoDBInputFormat infmt;

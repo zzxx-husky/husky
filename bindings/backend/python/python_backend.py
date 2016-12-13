@@ -1,6 +1,6 @@
 import sys
 
-from bindings.backend.python.globalvar import GlobalSocket, GlobalVar
+from bindings.backend.python.globalvar import GlobalSocket, GlobalVar, GlobalN2NSocket
 from bindings.backend.python.serializers import Serializer, MarshalSerializer, PickleSerializer, AutoSerializer, CompressedSerializer
 from bindings.backend.library.register import register_func
 from processor import handle_instr 
@@ -25,6 +25,9 @@ if __name__ == "__main__":
     Serializer.serializer = PickleSerializer()
 
     GlobalSocket.init_socket(str(GlobalVar.local_id), str(GlobalVar.proc_id), str(GlobalVar.session_id))
+    # N2N
+    GlobalN2NSocket.init_socket()
+    # N2N
     register_func()
 
     instr_id = 0
