@@ -20,36 +20,14 @@
 
 namespace husky {
 
-thread_local size_t ChannelBase::counter = 0;
+thread_local int ChannelBase::max_channel_id_ = 0;
 
-ChannelBase::ChannelBase() : channel_id_(counter), progress_(0) {
-    counter += 1;
-    set_as_sync_channel();
-}
-
-void ChannelBase::set_local_id(size_t local_id) { local_id_ = local_id; }
-
-void ChannelBase::set_global_id(size_t global_id) { global_id_ = global_id; }
-
-void ChannelBase::set_worker_info(const WorkerInfo& worker_info) { worker_info_.reset(new WorkerInfo(worker_info)); }
-
-void ChannelBase::set_mailbox(LocalMailbox* mailbox) { mailbox_ = mailbox; }
-
-void ChannelBase::set_as_async_channel() { type_ = ChannelType::Async; }
-
-void ChannelBase::set_as_sync_channel() { type_ = ChannelType::Sync; }
-
-void ChannelBase::setup(size_t local_id, size_t global_id, const WorkerInfo& worker_info, LocalMailbox* mailbox) {
-    set_local_id(local_id);
-    set_global_id(global_id);
-    set_worker_info(worker_info);
-    set_mailbox(mailbox);
-    customized_setup();
+ChannelBase::ChannelBase() : channel_id_(max_channel_id_), progress_(0) {
+    max_channel_id_ += 1;
 }
 
 void ChannelBase::inc_progress() {
     progress_ += 1;
-    flushed_.resize(progress_ + 1, true);
 }
 
 }  // namespace husky

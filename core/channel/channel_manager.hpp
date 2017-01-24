@@ -40,13 +40,10 @@ class ChannelManager {
         std::vector<ChannelBase*> selected_channels;
         std::vector<std::pair<int, int>> channel_progress_pairs;
         for (auto* channel : channels_) {
-            // Only consider the channels_ which are flushed and do preparation
-            if (channel->is_flushed()) {
-                channel->prepare();
-                selected_channels.push_back(channel);
-                channel_progress_pairs.push_back({channel->get_channel_id(), channel->get_progress()});
-            }
+            selected_channels.push_back(channel);
+            channel_progress_pairs.push_back({channel->get_channel_id(), channel->get_progress()});
         }
+
         // return if no channel is flushed
         if (channel_progress_pairs.empty())
             return;
@@ -54,18 +51,16 @@ class ChannelManager {
         // receive from mailbox_ and distbribute
         int idx = -1;
         std::pair<int, int> pair;
-        if (channel_progress_pairs.empty()) {
-            return;
-        }
+
         while (mailbox_->poll(channel_progress_pairs, &idx)) {
             ASSERT_MSG(idx != -1, "ChannelManager: Mailbox poll error");
             auto bin = mailbox_->recv(channel_progress_pairs[idx].first, channel_progress_pairs[idx].second);
-            selected_channels[idx]->in(bin);
+            selected_channels[idx]->get_bin_stream_processor()(&bin);
         }
 
         // reset the flushed_ buffer
         for (auto* ch : selected_channels) {
-            ch->reset_flushed();
+            ch->post_recv();
         }
     }
 

@@ -24,62 +24,68 @@
 
 namespace husky {
 
-using base::BinStream;
-
 class ChannelBase {
    public:
-    enum class ChannelType { Sync, Async };
-
     virtual ~ChannelBase() = default;
 
-    /// Getter
-    inline static size_t get_num_channel() { return counter; }
+    // Getters of basic information
+
     inline LocalMailbox* get_mailbox() const { return mailbox_; }
     inline size_t get_channel_id() const { return channel_id_; }
     inline size_t get_global_id() const { return global_id_; }
     inline size_t get_local_id() const { return local_id_; }
     inline size_t get_progress() const { return progress_; }
-    inline ChannelType get_channel_type() const { return type_; }
 
-    /// Setter
-    void set_local_id(size_t local_id);
-    void set_global_id(size_t global_id);
-    void set_worker_info(const WorkerInfo& worker_info);
-    void set_mailbox(LocalMailbox* mailbox);
+    // Setters of basic information
 
-    void set_as_async_channel();
-    void set_as_sync_channel();
+    void set_local_id(size_t local_id) { local_id_ = local_id; }
+    void set_global_id(size_t global_id) { global_id_ = global_id; }
+    void set_worker_info(const WorkerInfo& worker_info) { worker_info_.reset(new WorkerInfo(worker_info)); }
+    void set_mailbox(LocalMailbox* mailbox) { mailbox_ = mailbox; }
 
-    void setup(size_t local_id, size_t global_id, const WorkerInfo& worker_info, LocalMailbox* mailbox);
+    // Top-level APIs
 
-    /// customized_setup() is used to do customized setup for subclass
-    virtual void customized_setup() = 0;
+    virtual void in() {
+        this->recv();
+        this->post_recv();
+    };
 
-    /// prepare() needs to be invoked to do some preparation work (if any), such as clearing buffers,
-    /// before it can take new incoming communication using the in(BinStream&) method.
-    /// In list_execute (in core/executor.hpp), prepare() is usually used before any in(BinStream&).
-    virtual void prepare() {}
+    virtual void out() {
+        this->pre_send();
+        this->send();
+        this->post_send();
+    };
 
-    /// in(BinStream&) defines what the channel should do when receiving a binstream
-    virtual void in(BinStream& bin) {}
+    // Second-level APIs
 
-    /// out() defines what the channel should do after a list_execute, normally mailbox->send_complete() will be invoked
-    virtual void out() {}
+    virtual void recv() {
+        // A simple default synchronous implementation
+        if(mailbox_ == nullptr)
+            throw base::HuskyException("Local mailbox not set, and thus cannot use the recv() method.");
 
-    /// is_flushed() checks whether flush() is invoked
-    /// If yes, then list_execute will invoke prepare() and later in(BinStream& bin) will be invoked
-    /// If no, list_execute will just omit this channel
-    inline bool is_flushed() { return flushed_[progress_]; }
+        while(mailbox_->poll(channel_id_, progress_)) {
+            base::BinStream bin_stream = mailbox_->recv(channel_id_, progress_);
+            if(bin_stream_processor_ != nullptr)
+                bin_stream_processor_(&bin_stream);
+        }
+    };
 
-    /// Invoked by prepare_messages or ChannelManager after receiving from mailbox
-    /// reset the flushed_ so that prepare/prepare_messages won't be invoked next time
-    inline void reset_flushed() { flushed_[progress_] = false; }
+    virtual void post_recv() {};
+    virtual void pre_send() {};
+    virtual void send() {};
+    virtual void post_send() {};
+
+    // Third-level APIs (invoked by its upper level)
+
+    void set_bin_stream_processor(std::function<void(base::BinStream*)> bin_stream_processor) {
+        bin_stream_processor_ = bin_stream_processor;
+    }
+
+    std::function<void(base::BinStream*)> get_bin_stream_processor() {
+        return bin_stream_processor_;
+    }
 
     void inc_progress();
-
-    virtual void send() {};
-
-    virtual void send_complete() {};
 
    protected:
     ChannelBase();
@@ -95,15 +101,12 @@ class ChannelBase {
     size_t local_id_;
     size_t progress_;
 
-    ChannelType type_;
-
-    std::vector<bool> flushed_{0};
-
     std::unique_ptr<WorkerInfo> worker_info_;
     LocalMailbox* mailbox_ = nullptr;
-    const HashRing* hash_ring_ = nullptr;
 
-    static thread_local size_t counter;
+    std::function<void(base::BinStream*)> bin_stream_processor_ = nullptr;
+
+    static thread_local int max_channel_id_;
 };
 
 }  // namespace husky

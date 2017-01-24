@@ -37,7 +37,7 @@ class AggregatorChannel : public ChannelBase {
     void default_setup(std::function<void()> something);
     void send(std::vector<BinStream>& bins);
     bool poll();
-    BinStream recv();
+    BinStream recv_();
 
    private:
     std::function<void()> do_something = nullptr;

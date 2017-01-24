@@ -24,6 +24,7 @@
 #include "core/channel/migrate_channel.hpp"
 #include "core/channel/push_channel.hpp"
 #include "core/channel/push_combined_channel.hpp"
+#include "core/sync_shuffle_combiner.hpp"
 
 namespace husky {
 
@@ -53,23 +54,33 @@ class ChannelStoreBase {
 
     // Create PushCombinedChannel
     template <typename MsgT, typename CombineT, typename DstObjT>
-    static PushCombinedChannel<MsgT, DstObjT, CombineT>& create_push_combined_channel(ChannelSource& src_list,
-                                                                                      ObjList<DstObjT>& dst_list,
-                                                                                      const std::string& name = "") {
+    static auto* create_push_combined_channel(ObjList<DstObjT>& dst_list,
+                                              const std::string& name = "") {
         std::string channel_name = name.empty() ? channel_name_prefix + std::to_string(default_channel_id++) : name;
         if(channel_map.find(name) != channel_map.end())
            throw base::HuskyException("ChannelStoreBase::create_channel: Channel name already exists");
-        auto* push_combined_channel = new PushCombinedChannel<MsgT, DstObjT, CombineT>(&src_list, &dst_list);
+        auto* push_combined_channel = new PushCombinedChannel<MsgT, DstObjT, CombineT>();
         channel_map.insert({channel_name, push_combined_channel});
-        return *push_combined_channel;
+        return push_combined_channel;
+    }
+
+    // Create PushCombinedChannel
+    template <typename MsgT, typename CombineT, typename DstObjT>
+    static auto* create_push_combined_channel(const std::string& name = "") {
+        std::string channel_name = name.empty() ? channel_name_prefix + std::to_string(default_channel_id++) : name;
+        if(channel_map.find(name) != channel_map.end())
+           throw base::HuskyException("ChannelStoreBase::create_channel: Channel name already exists");
+        auto* push_combined_channel = new PushCombinedChannel<MsgT, DstObjT, CombineT>();
+        channel_map.insert({channel_name, push_combined_channel});
+        return push_combined_channel;
     }
 
     template <typename MsgT, typename CombineT, typename DstObjT>
-    static PushCombinedChannel<MsgT, DstObjT, CombineT>& get_push_combined_channel(const std::string& name = "") {
+    static auto& get_push_combined_channel(const std::string& name = "") {
         if(channel_map.find(name) == channel_map.end())
            throw base::HuskyException("ChannelStoreBase::get_channel: Channel name doesn't exist");
         auto* channel = channel_map[name];
-        return *dynamic_cast<PushCombinedChannel<MsgT, DstObjT, CombineT>*>(channel);
+        return *static_cast<PushCombinedChannel<MsgT, DstObjT, CombineT>*>(channel);
     }
 
     // Create MigrateChannel

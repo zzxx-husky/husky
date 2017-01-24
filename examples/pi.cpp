@@ -45,14 +45,15 @@ void pi() {
 
     // Aggregate statistics to object 0
     auto& pi_list = husky::ObjListStore::create_objlist<PIObject>();
-    auto& ch = husky::ChannelStore::create_push_combined_channel<int, husky::SumCombiner<int>>(pi_list, pi_list);
-    ch.push(cnt, 0);
-    ch.flush();
-    list_execute(pi_list, [&](PIObject& obj) {
-        int sum = ch.get(obj);
+    auto* ch = husky::ChannelStore::create_push_combined_channel<int, husky::SumCombiner<int>>(&pi_list);
+    ch->push(cnt, 0);
+    ch->out();
+    ch->in();
+    if(ch->has_msgs(0)) {
+        int sum = ch->get(0);
         int total_pts = num_pts_per_thread * husky::Context::get_num_workers();
         husky::LOG_I << (4.0 * sum / total_pts);
-    });
+    }
 }
 
 int main(int argc, char** argv) {

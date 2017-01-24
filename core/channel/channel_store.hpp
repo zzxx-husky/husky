@@ -17,6 +17,7 @@
 #include <string>
 
 #include "core/channel/channel_store_base.hpp"
+#include "core/sync_shuffle_combiner.hpp"
 #include "core/context.hpp"
 #include "core/objlist.hpp"
 
@@ -32,17 +33,46 @@ class ChannelStore : public ChannelStoreBase {
     static PushChannel<MsgT, DstObjT>& create_push_channel(ChannelSource& src_list, ObjList<DstObjT>& dst_list,
                                                            const std::string& name = "") {
         auto& ch = ChannelStoreBase::create_push_channel<MsgT>(src_list, dst_list, name);
-        setup(ch);
         return ch;
     }
 
     // Create PushCombinedChannel
     template <typename MsgT, typename CombineT, typename DstObjT>
-    static PushCombinedChannel<MsgT, DstObjT, CombineT>& create_push_combined_channel(ChannelSource& src_list,
-                                                                                      ObjList<DstObjT>& dst_list,
-                                                                                      const std::string& name = "") {
-        auto& ch = ChannelStoreBase::create_push_combined_channel<MsgT, CombineT>(src_list, dst_list, name);
-        setup(ch);
+    static auto* create_push_combined_channel(ObjList<DstObjT>* dst_list, const std::string& name = "") {
+        auto* ch = ChannelStoreBase::create_push_combined_channel<MsgT, CombineT>(*dst_list);
+        common_setup(ch);
+        ch->set_obj_list(dst_list);
+        ch->set_combiner(new SyncShuffleCombiner<MsgT, typename DstObjT::KeyT, CombineT>(Context::get_zmq_context()));
+        ch->set_bin_stream_processor([=](base::BinStream* bin_stream){
+            auto* recv_buffer = ch->get_recv_buffer();
+            auto* recv_flags = ch->get_recv_flags();
+
+            while (bin_stream->size() != 0) {
+                typename DstObjT::KeyT key;
+                *bin_stream >> key;
+                MsgT msg;
+                *bin_stream >> msg;
+
+                DstObjT* recver_obj = dst_list->find(key);
+                int idx;
+                if (recver_obj == nullptr) {
+                    DstObjT obj(key);  // Construct obj using key only
+                    idx = dst_list->add_object(std::move(obj));
+                } else {
+                    idx = dst_list->index_of(recver_obj);
+                }
+                if (idx >= ch->get_recv_buffer()->size()) {
+                    recv_buffer->resize(idx + 1);
+                    recv_flags->resize(idx + 1);
+                }
+                if ((*recv_flags)[idx] == true) {
+                    CombineT::combine((*recv_buffer)[idx], msg);
+                } else {
+                    (*recv_buffer)[idx] = std::move(msg);
+                    (*recv_flags)[idx] = true;
+                }
+            }
+        });
         return ch;
     }
 
@@ -82,9 +112,11 @@ class ChannelStore : public ChannelStoreBase {
         return ch;
     }
 
-    static void setup(ChannelBase& ch) {
-        ch.setup(Context::get_local_tid(), Context::get_global_tid(), Context::get_worker_info(),
-                 Context::get_mailbox());
+    static void common_setup(ChannelBase* ch) {
+        ch->set_mailbox(Context::get_mailbox(Context::get_local_tid()));
+        ch->set_local_id(Context::get_local_tid());
+        ch->set_global_id(Context::get_global_tid());
+        ch->set_worker_info(Context::get_worker_info());
     }
 };
 

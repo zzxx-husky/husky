@@ -112,10 +112,10 @@ void AggregatorFactory::send(AggregatorChannel& channel, std::vector<BinStream>&
 
 void AggregatorFactory::on_recv(AggregatorChannel& channel, const std::function<void(BinStream&)>& recv) {
     while (channel.poll()) {
-        BinStream bin = channel.recv();
-        if (bin.size() != 0) {
-            recv(bin);
-        }
+        // BinStream bin = channel.recv();
+        // if (bin.size() != 0) {
+            // recv(bin);
+        // }
     }
 }
 

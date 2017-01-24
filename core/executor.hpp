@@ -105,69 +105,52 @@ void globalize(ObjList<ObjT>& obj_list) {
 /// Channel must be AsyncPushChannel or AsyncMigrateChannel
 /// Only one channel is allowed so far
 /// TODO(Wei): Multiple channels should be allowed to bind to one object list
-template <typename ObjT, typename ExecT>
-void list_execute_async(ObjList<ObjT>& obj_list, ExecT execute, int async_time, double timeout = 0.0) {
-    std::vector<ChannelBase*> channels = obj_list.get_inchannels();
-    if (channels.size() != 1)
-        throw base::HuskyException("list_execute_async currently only supports exactly one channel.");
-    ChannelBase* channel = channels[0];
-    if (channel->get_channel_type() != ChannelBase::ChannelType::Async)
-        throw base::HuskyException("list_execute_async currently only supports one asynchronous channel.");
-
-    auto start = std::chrono::steady_clock::now();
-    auto duration = std::chrono::seconds(async_time);
-    auto* mailbox = channel->get_mailbox();
-    while (std::chrono::steady_clock::now() - start < duration) {
-        // 1. receive messages if any
-        channel->prepare();
-        if (timeout == 0.0) {
-            while (mailbox->poll_non_block(channel->get_channel_id(), channel->get_progress())) {
-                auto bin = mailbox->recv(channel->get_channel_id(), channel->get_progress());
-                channel->in(bin);
-            }
-        } else {
-            while (mailbox->poll_with_timeout(channel->get_channel_id(), channel->get_progress(), timeout)) {
-                auto bin = mailbox->recv(channel->get_channel_id(), channel->get_progress());
-                channel->in(bin);
-            }
-        }
-
-        // 2. iterate over the list
-        for (size_t i = 0; i < obj_list.get_vector_size(); ++i) {
-            if (obj_list.get_del(i))
-                continue;
-            execute(obj_list.get(i));
-        }
-
-        // 3. flush
-        channel->out();
-    }
-    mailbox->send_complete(channel->get_channel_id(), channel->get_progress(),
-                           Context::get_worker_info().get_local_tids(), Context::get_worker_info().get_pids());
-    channel->prepare();
-    while (mailbox->poll(channel->get_channel_id(), channel->get_progress())) {
-        auto bin = mailbox->recv(channel->get_channel_id(), channel->get_progress());
-        channel->in(bin);
-    }
-    channel->inc_progress();
-}
-
-template <typename ObjT, typename ExecT>
-void list_execute(ObjList<ObjT>& obj_list, ExecT execute) {
-    // TODO(all): the order of invoking prefuncs may matter.
-    // e.g. MigrateChannel should be invoked before PushChannel
-    ChannelManager in_manager(obj_list.get_inchannels());
-    in_manager.poll_and_distribute();
-
-    for (size_t i = 0; i < obj_list.get_vector_size(); ++i) {
-        if (obj_list.get_del(i))
-            continue;
-        execute(obj_list.get(i));
-    }
-
-    ChannelManager out_manager(obj_list.get_outchannels());
-    out_manager.flush();
-}
+// template <typename ObjT, typename ExecT>
+// void list_execute_async(ObjList<ObjT>& obj_list, ExecT execute, int async_time, double timeout = 0.0) {
+//     std::vector<ChannelBase*> channels = obj_list.get_inchannels();
+//     if (channels.size() != 1)
+//         throw base::HuskyException("list_execute_async currently only supports exactly one channel.");
+//     ChannelBase* channel = channels[0];
+//     if (channel->get_channel_type() != ChannelBase::ChannelType::Async)
+//         throw base::HuskyException("list_execute_async currently only supports one asynchronous channel.");
+//
+//     auto start = std::chrono::steady_clock::now();
+//     auto duration = std::chrono::seconds(async_time);
+//     auto* mailbox = channel->get_mailbox();
+//     while (std::chrono::steady_clock::now() - start < duration) {
+//         // 1. receive messages if any
+//         channel->prepare();
+//         if (timeout == 0.0) {
+//             while (mailbox->poll_non_block(channel->get_channel_id(), channel->get_progress())) {
+//                 auto bin = mailbox->recv(channel->get_channel_id(), channel->get_progress());
+//                 channel->in(bin);
+//             }
+//         } else {
+//             while (mailbox->poll_with_timeout(channel->get_channel_id(), channel->get_progress(), timeout)) {
+//                 auto bin = mailbox->recv(channel->get_channel_id(), channel->get_progress());
+//                 channel->in(bin);
+//             }
+//         }
+//
+//         // 2. iterate over the list
+//         for (size_t i = 0; i < obj_list.get_vector_size(); ++i) {
+//             if (obj_list.get_del(i))
+//                 continue;
+//             execute(obj_list.get(i));
+//         }
+//
+//         // 3. flush
+//         channel->out();
+//     }
+//     mailbox->send_complete(channel->get_channel_id(), channel->get_progress(),
+//                            Context::get_worker_info().get_local_tids(), Context::get_worker_info().get_pids());
+//     channel->prepare();
+//     while (mailbox->poll(channel->get_channel_id(), channel->get_progress())) {
+//         auto bin = mailbox->recv(channel->get_channel_id(), channel->get_progress());
+//         channel->in(bin);
+//     }
+//     channel->inc_progress();
+// }
 
 template <typename ObjT, typename ExecT>
 void list_execute(ObjList<ObjT>& obj_list, const std::vector<ChannelBase*>& in_channel,
