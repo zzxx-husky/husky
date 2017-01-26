@@ -21,66 +21,18 @@
 #include "core/channel/channel_impl.hpp"
 #include "core/hash_ring.hpp"
 #include "core/mailbox.hpp"
-#include "core/objlist.hpp"
 #include "core/worker_info.hpp"
 
 namespace husky {
 
-using base::BinStream;
-
 template <typename MsgT, typename DstObjT>
-class PushChannel : public Source2ObjListChannel<DstObjT> {
+class PushChannel : public ChannelBase {
    public:
-    PushChannel(ChannelSource* src, ObjList<DstObjT>* dst) : Source2ObjListChannel<DstObjT>(src, dst) {
-        this->src_ptr_->register_outchannel(this->channel_id_, this);
-        this->dst_ptr_->register_inchannel(this->channel_id_, this);
+    PushChannel() = default;
 
-        recv_comm_handler_ = [&](const MsgT& msg, DstObjT* recver_obj) {
-            size_t idx = this->dst_ptr_->index_of(recver_obj);
-            if (idx >= recv_buffer_.size())
-                recv_buffer_.resize(idx + 1);
-            recv_buffer_[idx].push_back(std::move(msg));
-        };
-    }
+    // The following are virtual methods
 
-    ~PushChannel() override {
-        if (this->src_ptr_ != nullptr)
-            this->src_ptr_->deregister_outchannel(this->channel_id_);
-        if (this->dst_ptr_ != nullptr)
-            this->dst_ptr_->deregister_inchannel(this->channel_id_);
-    }
-    PushChannel(const PushChannel&) = delete;
-    PushChannel& operator=(const PushChannel&) = delete;
-
-    PushChannel(PushChannel&&) = default;
-    PushChannel& operator=(PushChannel&&) = default;
-
-    void customized_setup() override {
-        // use get_largest_tid() instead of get_num_workers()
-        // sine we may only use a subset of worker
-        send_buffer_.resize(this->worker_info_->get_largest_tid() + 1);
-    }
-
-    void push(const MsgT& msg, const typename DstObjT::KeyT& key) {
-        int dst_worker_id = this->worker_info_->get_hash_ring().hash_lookup(key);
-        send_buffer_[dst_worker_id] << key << msg;
-    }
-
-    const std::vector<MsgT>& get(const DstObjT& obj) {
-        auto idx = this->dst_ptr_->index_of(&obj);
-        if (idx >= recv_buffer_.size()) {  // resize recv_buffer_ if it is not large enough
-            recv_buffer_.resize(this->dst_ptr_->get_size());
-        }
-        return recv_buffer_[idx];
-    }
-
-    void prepare() override { clear_recv_buffer_(); }
-
-    void in(BinStream& bin) override { process_bin(bin); }
-
-    void out() override { flush(); }
-
-    void send() {
+    void send() override {
         int start = this->global_id_;
         for (int i = 0; i < send_buffer_.size(); ++i) {
             int dst = (start + i) % send_buffer_.size();
@@ -91,67 +43,64 @@ class PushChannel : public Source2ObjListChannel<DstObjT> {
         }
     }
 
-    void send_complete() {
+    void post_send() override {
         this->inc_progress();
         this->mailbox_->send_complete(this->channel_id_, this->progress_, this->worker_info_->get_local_tids(),
                                       this->worker_info_->get_pids());
     }
 
-    /// This method is only useful without list_execute
-    void flush() {
-        send();
-        send_complete();
+    void set_worker_info(const WorkerInfo& worker_info) override {
+        worker_info_.reset(new WorkerInfo(worker_info));
+        if (send_buffer_.size() != worker_info_->get_largest_tid() + 1)
+            send_buffer_.resize(worker_info_->get_largest_tid() + 1);
     }
 
-    /// This method is only useful without list_execute
-    void prepare_messages() {
-        if (!this->is_flushed())
-            return;
-        clear_recv_buffer_();
-        while (this->mailbox_->poll(this->channel_id_, this->progress_)) {
-            auto bin_push = this->mailbox_->recv(this->channel_id_, this->progress_);
-            process_bin(bin_push);
+    // The following are specific to this channel type
+
+    inline void push(const MsgT& msg, const typename DstObjT::KeyT& key) {
+        int dst_worker_id = this->worker_info_->get_hash_ring().hash_lookup(key);
+        send_buffer_[dst_worker_id] << key << msg;
+    }
+
+    inline const std::vector<MsgT>& get(const DstObjT& obj) {
+        if (this->base_obj_addr_getter_ == nullptr) {
+            throw base::HuskyException(
+                "Object Address Getter not set and thus cannot get message by providing an object. "
+                "Please use `set_base_obj_addr_getter` first.");
         }
-        this->reset_flushed();
+        auto idx = &obj - this->base_obj_addr_getter_();
+        if (idx >= recv_buffer_.size()) {                       // resize recv_buffer_ if it is not large enough
+            recv_buffer_.resize(this->obj_list_ptr_->get_size());
+        }
+        return recv_buffer_[idx];
     }
 
-    /// \brief Set a customized handler to handle incoming communication
-    ///
-    /// The handler takes the message and its destinating object as its two arguments.
-    /// Then the handler decides the operation to apply on this object.
-    ///
-    /// @param comm_handler A handler that contains the operation to be applied on
-    ///                     the obejct, using the received message.
-    void set_recv_comm_handler(std::function<void(const MsgT&, DstObjT*)> recv_comm_handler) {
-        recv_comm_handler_ = recv_comm_handler;
+    inline const std::vector<MsgT>& get(int idx) { return recv_buffer_[idx]; }
+
+    inline bool has_msgs(const DstObjT& obj) {
+        if (this->base_obj_addr_getter_ == nullptr) {
+            throw base::HuskyException(
+                "Object Address Getter not set and thus cannot get message by providing an object. "
+                "Please use `set_base_obj_addr_getter` first.");
+        }
+        auto idx = &obj - this->base_obj_addr_getter_();
+        return has_msgs(idx);
     }
+
+    inline bool has_msgs(int idx) {
+        if (idx >= recv_buffer_.size())
+            return false;
+        return recv_buffer_[idx].size() != 0;
+    }
+
+    void set_base_obj_addr_getter(std::function<DstObjT*()> base_obj_addr_getter) { base_obj_addr_getter_ = base_obj_addr_getter; }
+
+    std::vector<std::vector<MsgT>>* get_recv_buffer() { return &recv_buffer_; }
 
    protected:
-    void clear_recv_buffer_() {
-        // TODO(yuzhen): What types of clear do we need?
-        for (auto& vec : recv_buffer_)
-            vec.clear();
-    }
-    void process_bin(BinStream& bin_push) {
-        while (bin_push.size() != 0) {
-            typename DstObjT::KeyT key;
-            bin_push >> key;
-            MsgT msg;
-            bin_push >> msg;
-
-            DstObjT* recver_obj = this->dst_ptr_->find(key);
-            if (recver_obj == nullptr) {
-                DstObjT obj(key);  // Construct obj using key only
-                size_t idx = this->dst_ptr_->add_object(std::move(obj));
-                recver_obj = &(this->dst_ptr_->get(idx));
-            }
-            recv_comm_handler_(msg, recver_obj);
-        }
-    }
-
-    std::function<void(const MsgT&, DstObjT*)> recv_comm_handler_;
-    std::vector<BinStream> send_buffer_;
+    std::vector<base::BinStream> send_buffer_;
     std::vector<std::vector<MsgT>> recv_buffer_;
+    std::function<DstObjT*()> base_obj_addr_getter_;    // TODO(fan) cache the address?
 };
 
 }  // namespace husky

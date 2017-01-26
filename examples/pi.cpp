@@ -49,7 +49,7 @@ void pi() {
     ch->push(cnt, 0);
     ch->out();
     ch->in();
-    if(ch->has_msgs(0)) {
+    if (ch->has_msgs(0)) {
         int sum = ch->get(0);
         int total_pts = num_pts_per_thread * husky::Context::get_num_workers();
         husky::LOG_I << (4.0 * sum / total_pts);

@@ -17,9 +17,9 @@
 #include <string>
 
 #include "core/channel/channel_store_base.hpp"
-#include "core/sync_shuffle_combiner.hpp"
 #include "core/context.hpp"
 #include "core/objlist.hpp"
+#include "core/sync_shuffle_combiner.hpp"
 
 namespace husky {
 
@@ -30,9 +30,38 @@ class ChannelStore : public ChannelStoreBase {
    public:
     // Create PushChannel
     template <typename MsgT, typename DstObjT>
-    static PushChannel<MsgT, DstObjT>& create_push_channel(ChannelSource& src_list, ObjList<DstObjT>& dst_list,
-                                                           const std::string& name = "") {
-        auto& ch = ChannelStoreBase::create_push_channel<MsgT>(src_list, dst_list, name);
+    static auto* create_push_channel(ObjList<DstObjT>* dst_list, const std::string& name = "") {
+        auto* ch = ChannelStoreBase::create_push_channel<MsgT>(*dst_list);
+        common_setup(ch);
+        ch->set_base_obj_addr_getter([=](){
+            // TODO(fan) should do &dst_list->get_data.get(0) in debug mode
+            return &dst_list->get_data[0];
+        });
+        ch->set_bin_stream_processor([=](base::BinStream* bin_stream) {
+            auto* recv_buffer = ch->get_recv_buffer();
+
+            while (bin_stream->size() != 0) {
+                typename DstObjT::KeyT key;
+                *bin_stream >> key;
+
+                MsgT msg;
+                *bin_stream >> msg;
+
+                DstObjT* recver_obj = dst_list->find(key);
+                int idx;
+                if (recver_obj == nullptr) {
+                    DstObjT obj(key);  // Construct obj using key only
+                    idx = dst_list->add_object(std::move(obj));
+                } else {
+                    idx = dst_list->index_of(recver_obj);
+                }
+                if (idx >= ch->get_recv_buffer()->size()) {
+                    recv_buffer->resize(idx + 1);
+                }
+
+                (*recv_buffer)[idx].push_back(std::move(msg));
+            }
+        });
         return ch;
     }
 
@@ -41,9 +70,12 @@ class ChannelStore : public ChannelStoreBase {
     static auto* create_push_combined_channel(ObjList<DstObjT>* dst_list, const std::string& name = "") {
         auto* ch = ChannelStoreBase::create_push_combined_channel<MsgT, CombineT>(*dst_list);
         common_setup(ch);
-        ch->set_obj_list(dst_list);
+        ch->set_base_obj_addr_getter([=](){
+            // TODO(fan) should do &dst_list->get_data.get(0) in debug mode
+            return &dst_list->get_data[0];
+        });
         ch->set_combiner(new SyncShuffleCombiner<MsgT, typename DstObjT::KeyT, CombineT>(Context::get_zmq_context()));
-        ch->set_bin_stream_processor([=](base::BinStream* bin_stream){
+        ch->set_bin_stream_processor([=](base::BinStream* bin_stream) {
             auto* recv_buffer = ch->get_recv_buffer();
             auto* recv_flags = ch->get_recv_flags();
 

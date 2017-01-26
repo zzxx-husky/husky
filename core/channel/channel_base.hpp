@@ -40,7 +40,7 @@ class ChannelBase {
 
     void set_local_id(size_t local_id) { local_id_ = local_id; }
     void set_global_id(size_t global_id) { global_id_ = global_id; }
-    void set_worker_info(const WorkerInfo& worker_info) { worker_info_.reset(new WorkerInfo(worker_info)); }
+    virtual void set_worker_info(const WorkerInfo& worker_info) { worker_info_.reset(new WorkerInfo(worker_info)); }
     void set_mailbox(LocalMailbox* mailbox) { mailbox_ = mailbox; }
 
     // Top-level APIs
@@ -48,32 +48,32 @@ class ChannelBase {
     virtual void in() {
         this->recv();
         this->post_recv();
-    };
+    }
 
     virtual void out() {
         this->pre_send();
         this->send();
         this->post_send();
-    };
+    }
 
     // Second-level APIs
 
     virtual void recv() {
         // A simple default synchronous implementation
-        if(mailbox_ == nullptr)
+        if (mailbox_ == nullptr)
             throw base::HuskyException("Local mailbox not set, and thus cannot use the recv() method.");
 
-        while(mailbox_->poll(channel_id_, progress_)) {
+        while (mailbox_->poll(channel_id_, progress_)) {
             base::BinStream bin_stream = mailbox_->recv(channel_id_, progress_);
-            if(bin_stream_processor_ != nullptr)
+            if (bin_stream_processor_ != nullptr)
                 bin_stream_processor_(&bin_stream);
         }
-    };
+    }
 
-    virtual void post_recv() {};
-    virtual void pre_send() {};
-    virtual void send() {};
-    virtual void post_send() {};
+    virtual void post_recv(){}
+    virtual void pre_send(){}
+    virtual void send(){}
+    virtual void post_send(){}
 
     // Third-level APIs (invoked by its upper level)
 
@@ -81,9 +81,7 @@ class ChannelBase {
         bin_stream_processor_ = bin_stream_processor;
     }
 
-    std::function<void(base::BinStream*)> get_bin_stream_processor() {
-        return bin_stream_processor_;
-    }
+    std::function<void(base::BinStream*)> get_bin_stream_processor() { return bin_stream_processor_; }
 
     void inc_progress();
 
