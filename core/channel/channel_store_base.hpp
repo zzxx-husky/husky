@@ -1,3 +1,4 @@
+
 // Copyright 2016 Husky Team
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -94,34 +95,43 @@ class ChannelStoreBase {
 
     // Create MigrateChannel
     template <typename ObjT>
-    static MigrateChannel<ObjT>& create_migrate_channel(ObjList<ObjT>& src_list, ObjList<ObjT>& dst_list,
-                                                        const std::string& name = "") {
+    static auto* create_migrate_channel(ObjList<ObjT>& src_list, ObjList<ObjT>& dst_list,
+                                        const std::string& name = "") {
         std::string channel_name = name.empty() ? channel_name_prefix + std::to_string(default_channel_id++) : name;
-        ASSERT_MSG(channel_map.find(channel_name) == channel_map.end(),
-                   "ChannelStoreBase::create_channel: Channel name already exists");
-        auto* migrate_channel = new MigrateChannel<ObjT>(&src_list, &dst_list);
+        if (channel_map.find(channel_name) != channel_map.end())
+            throw base::HuskyException("ChannelStoreBase::create_channel: Channel name already exists");
+        auto* migrate_channel = new MigrateChannel<ObjT>();
         channel_map.insert({channel_name, migrate_channel});
-        return *migrate_channel;
+        return migrate_channel;
     }
 
     template <typename ObjT>
-    static MigrateChannel<ObjT>& get_migrate_channel(const std::string& name = "") {
-        ASSERT_MSG(channel_map.find(name) != channel_map.end(),
-                   "ChannelStoreBase::get_channel: Channel name doesn't exist");
+    static auto& get_migrate_channel(const std::string& name = "") {
+        if (channel_map.find(name) != channel_map.end())
+            throw base::HuskyException("ChannelStoreBase::get_channel: Channel name doesn't exist");
         auto* channel = channel_map[name];
-        return *dynamic_cast<MigrateChannel<ObjT>*>(channel);
+        return *static_cast<MigrateChannel<ObjT>*>(channel);
     }
 
     // Create BroadcastChannel
     template <typename KeyT, typename MsgT>
-    static BroadcastChannel<KeyT, MsgT>& create_broadcast_channel(ChannelSource& src_list,
-                                                                  const std::string& name = "") {
+    static auto* create_broadcast_channel(const std::string& name = "") {
         std::string channel_name = name.empty() ? channel_name_prefix + std::to_string(default_channel_id++) : name;
-        ASSERT_MSG(channel_map.find(channel_name) == channel_map.end(),
-                   "ChannelStoreBase::create_channel: Channel name already exists");
-        auto* broadcast_channel = new BroadcastChannel<KeyT, MsgT>(&src_list);
+        if (channel_map.find(channel_name) != channel_map.end()) {
+            throw base::HuskyException("ChannelStoreBase::create_channel: Channel name already exists");
+        }
+        auto* broadcast_channel = new BroadcastChannel<KeyT, MsgT>();
         channel_map.insert({channel_name, broadcast_channel});
-        return *broadcast_channel;
+        return broadcast_channel;
+    }
+
+    template <typename KeyT, typename MsgT>
+    static auto& get_broadcast_channel(const std::string& name = "") {
+        if (channel_map.find(name) == channel_map.end()) {
+            throw base::HuskyException("ChannelStoreBase::get_channel: Channel name doesn't exist");
+        }
+        auto* channel = channel_map[name];
+        return *static_cast<BroadcastChannel<KeyT, MsgT>*>(channel);
     }
 
     // Create AsyncPushChannel
@@ -162,14 +172,6 @@ class ChannelStoreBase {
                    "ChannelStoreBase::get_channel: Channel name doesn't exist");
         auto* channel = channel_map[name];
         return *dynamic_cast<AsyncMigrateChannel<ObjT>*>(channel);
-    }
-
-    template <typename KeyT, typename MsgT>
-    static BroadcastChannel<KeyT, MsgT>& get_broadcast_channel(const std::string& name = "") {
-        ASSERT_MSG(channel_map.find(name) != channel_map.end(),
-                   "ChannelStoreBase::get_channel: Channel name doesn't exist");
-        auto* channel = channel_map[name];
-        return *dynamic_cast<BroadcastChannel<KeyT, MsgT>*>(channel);
     }
 
     static void drop_channel(const std::string& name) {

@@ -110,19 +110,41 @@ class ChannelStore : public ChannelStoreBase {
 
     // Create MigrateChannel
     template <typename ObjT>
-    static MigrateChannel<ObjT>& create_migrate_channel(ObjList<ObjT>& src_list, ObjList<ObjT>& dst_list,
-                                                        const std::string& name = "") {
-        auto& ch = ChannelStoreBase::create_migrate_channel<ObjT>(src_list, dst_list, name);
-        setup(ch);
+    static auto* create_migrate_channel(ObjList<ObjT>* src_list, ObjList<ObjT>* dst_list,
+                                        const std::string& name = "") {
+        auto* ch = ChannelStoreBase::create_migrate_channel<ObjT>(*src_list, *dst_list, name);
+        common_setup(ch);
+        ch->set_obj_list(src_list);
+        ch->buffer_setup();
+        ch->set_bin_stream_processor([=](base::BinStream* bin_stream) {
+            while (bin_stream->size() != 0) {
+                ObjT obj;
+                *bin_stream >> obj;
+                auto idx = dst_list->add_object(std::move(obj));
+                dst_list->process_attribute(*bin_stream, idx);
+            }
+            if (dst_list->get_num_del() * 2 > dst_list->get_vector_size())
+                dst_list->deletion_finalize();
+        });
         return ch;
     }
 
     // Create BroadcastChannel
     template <typename KeyT, typename MsgT>
-    static BroadcastChannel<KeyT, MsgT>& create_broadcast_channel(ChannelSource& src_list,
-                                                                  const std::string& name = "") {
-        auto& ch = ChannelStoreBase::create_broadcast_channel<KeyT, MsgT>(src_list, name);
-        setup(ch);
+    static BroadcastChannel<KeyT, MsgT>& create_broadcast_channel(const std::string& name = "") {
+        auto* ch = ChannelStoreBase::create_broadcast_channel<KeyT, MsgT>(name);
+        common_setup(ch);
+        ch->buffer_accessor_setup();
+        auto& local_dict = ch->get_local_dict();
+        ch->set_bin_stream_processor([=](base::BinStream* bin_stream) {
+            auto& local_dict = ch->get_local_dict();
+            while (bin_stream->size() != 0) {
+                KeyT key;
+                MsgT value;
+                *bin_stream >> key >> value;
+                local_dict[key] = value;
+            }
+        });
         return ch;
     }
 

@@ -35,10 +35,19 @@ class Obj {
 };
 
 // Create broadcast without setting
-template <typename KeyT, typename ValueT>
-BroadcastChannel<KeyT, ValueT> create_broadcast_channel(ChannelSource& src_list) {
-    BroadcastChannel<KeyT, ValueT> broadcast_channel(&src_list);
-    return broadcast_channel;
+template <typename KeyT, typename MsgT>
+BroadcastChannel<KeyT, MsgT> create_broadcast_channel() {
+    auto ch = BroadcastChannel<KeyT, MsgT>();
+    ch.set_bin_stream_processor([&](base::BinStream* bin_stream) {
+        auto& local_dict = ch.get_local_dict();
+        while (bin_stream->size() != 0) {
+            KeyT key;
+            MsgT value;
+            *bin_stream >> key >> value;
+            local_dict[key] = value;
+        }
+    });
+    return ch;
 }
 
 TEST_F(TestBroadcastChannel, Create) {
@@ -64,8 +73,10 @@ TEST_F(TestBroadcastChannel, Create) {
     ObjList<Obj> src_list;
 
     // BroadcastChannel
-    auto broadcast_channel = create_broadcast_channel<int, int>(src_list);
+    auto broadcast_channel = create_broadcast_channel<int, int>();
+
     broadcast_channel.setup(0, 0, workerinfo, &mailbox);
+    broadcast_channel.buffer_accessor_setup();
 }
 
 TEST_F(TestBroadcastChannel, Broadcast) {
@@ -91,34 +102,36 @@ TEST_F(TestBroadcastChannel, Broadcast) {
     ObjList<Obj> src_list;
 
     // BroadcastChannel
-    auto broadcast_channel = create_broadcast_channel<int, std::string>(src_list);
+    auto broadcast_channel = create_broadcast_channel<int, std::string>();
+
     broadcast_channel.setup(0, 0, workerinfo, &mailbox);
+    broadcast_channel.buffer_accessor_setup();
 
     // broadcast
     // Round 1
     broadcast_channel.broadcast(23, "abc");
     broadcast_channel.broadcast(45, "bbb");
-    broadcast_channel.flush();
+    broadcast_channel.out();
 
-    broadcast_channel.prepare_broadcast();
+    broadcast_channel.in();
     EXPECT_EQ(broadcast_channel.get(23), "abc");
     EXPECT_EQ(broadcast_channel.get(45), "bbb");
 
     // Round 2
     broadcast_channel.broadcast(23, "a");
     broadcast_channel.broadcast(45, "b");
-    broadcast_channel.flush();
+    broadcast_channel.out();
 
-    broadcast_channel.prepare_broadcast();
+    broadcast_channel.in();
     EXPECT_EQ(broadcast_channel.get(23), "a");
     EXPECT_EQ(broadcast_channel.get(45), "b");
 
     // Round 3
     broadcast_channel.broadcast(23, "c");
     broadcast_channel.broadcast(45, "d");
-    broadcast_channel.flush();
+    broadcast_channel.out();
 
-    broadcast_channel.prepare_broadcast();
+    broadcast_channel.in();
     EXPECT_EQ(broadcast_channel.get(23), "c");
     EXPECT_EQ(broadcast_channel.get(45), "d");
 }
@@ -146,28 +159,30 @@ TEST_F(TestBroadcastChannel, BroadcastClearDict) {
     ObjList<Obj> src_list;
 
     // BroadcastChannel
-    auto broadcast_channel = create_broadcast_channel<int, std::string>(src_list);
+    auto broadcast_channel = create_broadcast_channel<int, std::string>();
+
     broadcast_channel.setup(0, 0, workerinfo, &mailbox);
+    broadcast_channel.buffer_accessor_setup();
 
     // broadcast
     // Round 1
     broadcast_channel.broadcast(23, "abc");
-    broadcast_channel.flush();
+    broadcast_channel.out();
 
-    broadcast_channel.prepare_broadcast();
+    broadcast_channel.in();
     EXPECT_EQ(broadcast_channel.get(23), "abc");
 
     // Round 2
-    broadcast_channel.flush();
-    broadcast_channel.prepare_broadcast();
+    broadcast_channel.out();
+    broadcast_channel.in();
     EXPECT_EQ(broadcast_channel.get(23), "abc");  // Last round result remain valid
 
     // set clear dict
     broadcast_channel.set_clear_dict(true);
 
     // Round 3
-    broadcast_channel.flush();
-    broadcast_channel.prepare_broadcast();
+    broadcast_channel.out();
+    broadcast_channel.in();
     EXPECT_EQ(broadcast_channel.find(23), false);  // Last round result is invalid
 }
 
@@ -201,16 +216,17 @@ TEST_F(TestBroadcastChannel, MultiThread) {
         // ObjList Setup
         ObjList<Obj> src_list;
 
-        // BroacastChannel
-        auto broadcast_channel = create_broadcast_channel<int, std::string>(src_list);
+        // BroadcastChannel
+        auto broadcast_channel = create_broadcast_channel<int, std::string>();
         broadcast_channel.setup(0, 0, workerinfo, &mailbox_0);
+        broadcast_channel.buffer_accessor_setup();
 
         // broadcast
         // Round 1
         broadcast_channel.broadcast(23, "abc");
-        broadcast_channel.flush();
+        broadcast_channel.out();
 
-        broadcast_channel.prepare_broadcast();
+        broadcast_channel.in();
         EXPECT_EQ(broadcast_channel.get(23), "abc");
         EXPECT_EQ(broadcast_channel.get(12), "ddd");
     });
@@ -218,16 +234,17 @@ TEST_F(TestBroadcastChannel, MultiThread) {
         // ObjList Setup
         ObjList<Obj> src_list;
 
-        // BroacastChannel
-        auto broadcast_channel = create_broadcast_channel<int, std::string>(src_list);
+        // BroadcastChannel
+        auto broadcast_channel = create_broadcast_channel<int, std::string>();
         broadcast_channel.setup(1, 1, workerinfo, &mailbox_1);
+        broadcast_channel.buffer_accessor_setup();
 
         // broadcast
         // Round 1
         broadcast_channel.broadcast(12, "ddd");
-        broadcast_channel.flush();
+        broadcast_channel.out();
 
-        broadcast_channel.prepare_broadcast();
+        broadcast_channel.in();
         EXPECT_EQ(broadcast_channel.get(23), "abc");
         EXPECT_EQ(broadcast_channel.get(12), "ddd");
     });

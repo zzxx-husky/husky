@@ -29,17 +29,9 @@ namespace husky {
 using base::BinStream;
 
 template <typename ObjT>
-class MigrateChannel : public ObjList2ObjListChannel<ObjT, ObjT> {
+class MigrateChannel : public ChannelBase {
    public:
-    MigrateChannel(ObjList<ObjT>* src, ObjList<ObjT>* dst) : ObjList2ObjListChannel<ObjT, ObjT>(src, dst) {
-        this->src_ptr_->register_outchannel(this->channel_id_, this);
-        this->dst_ptr_->register_inchannel(this->channel_id_, this);
-    }
-
-    ~MigrateChannel() override {
-        this->src_ptr_->deregister_outchannel(this->channel_id_);
-        this->dst_ptr_->deregister_inchannel(this->channel_id_);
-    }
+    MigrateChannel() = default;
 
     MigrateChannel(const MigrateChannel&) = delete;
     MigrateChannel& operator=(const MigrateChannel&) = delete;
@@ -47,22 +39,17 @@ class MigrateChannel : public ObjList2ObjListChannel<ObjT, ObjT> {
     MigrateChannel(MigrateChannel&&) = default;
     MigrateChannel& operator=(MigrateChannel&&) = default;
 
-    void customized_setup() override { migrate_buffer_.resize(this->worker_info_->get_largest_tid() + 1); }
+    void buffer_setup() { migrate_buffer_.resize(this->worker_info_->get_largest_tid() + 1); }
 
     void migrate(ObjT& obj, int dst_thread_id) {
-        auto idx = this->src_ptr_->delete_object(&obj);
+        auto idx = this->obj_list_ptr_->delete_object(&obj);
         migrate_buffer_[dst_thread_id] << obj;
-        this->src_ptr_->migrate_attribute(migrate_buffer_[dst_thread_id], idx);
+        this->obj_list_ptr_->migrate_attribute(migrate_buffer_[dst_thread_id], idx);
     }
 
-    void prepare() override {}
+    void set_obj_list(ObjList<ObjT>* obj_list_ptr) { obj_list_ptr_ = obj_list_ptr; }
 
-    void in(BinStream& bin) override { process_bin(bin); }
-
-    void out() override { flush(); }
-
-    /// This method is only useful without list_execute
-    void flush() {
+    void send() override {
         this->inc_progress();
         int start = this->global_id_;
         for (int i = 0; i < migrate_buffer_.size(); ++i) {
@@ -76,33 +63,8 @@ class MigrateChannel : public ObjList2ObjListChannel<ObjT, ObjT> {
                                       this->worker_info_->get_pids());
     }
 
-    /// This method is only useful without list_execute
-    void prepare_immigrants() {
-        if (!this->is_flushed())
-            return;
-        // process immigrants
-        while (this->mailbox_->poll(this->channel_id_, this->progress_)) {
-            auto bin_push = this->mailbox_->recv(this->channel_id_, this->progress_);
-            process_bin(bin_push);
-        }
-        // TODO(yuzhen): Should I put sort here or other place
-        // object insertion finalize
-        // dst_ptr->sort();
-        this->reset_flushed();
-    }
-
    protected:
-    void process_bin(BinStream& bin_push) {
-        while (bin_push.size() != 0) {
-            ObjT obj;
-            bin_push >> obj;
-            auto idx = this->dst_ptr_->add_object(std::move(obj));
-            this->dst_ptr_->process_attribute(bin_push, idx);
-        }
-        if (this->dst_ptr_->get_num_del() * 2 > this->dst_ptr_->get_vector_size())
-            this->dst_ptr_->deletion_finalize();
-    }
-
+    ObjList<ObjT>* obj_list_ptr_;
     std::vector<BinStream> migrate_buffer_;
 };
 

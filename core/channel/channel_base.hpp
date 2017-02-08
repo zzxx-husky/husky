@@ -43,6 +43,9 @@ class ChannelBase {
     virtual void set_worker_info(const WorkerInfo& worker_info) { worker_info_.reset(new WorkerInfo(worker_info)); }
     void set_mailbox(LocalMailbox* mailbox) { mailbox_ = mailbox; }
 
+    // Setup API for unit test
+    void setup(size_t local_id, size_t global_id, const WorkerInfo& worker_info, LocalMailbox* mailbox);
+
     // Top-level APIs
 
     virtual void in() {

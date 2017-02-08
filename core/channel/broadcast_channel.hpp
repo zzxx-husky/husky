@@ -34,17 +34,13 @@ using base::BinStream;
 template <typename KeyT, typename ValueT>
 class BroadcastChannel : public ChannelBase {
    public:
-    explicit BroadcastChannel(ChannelSource* src) : src_ptr_(src) {
-        // TODO(yuzhen): Should be careful, maybe need to deregister every time?
-        src_ptr_->register_outchannel(channel_id_, this);
-    }
+    BroadcastChannel() = default;
 
     ~BroadcastChannel() override {
         // Make sure to invoke inc_progress_ before destructor
         if (need_leave_accessor_)
             leave_accessor();
         AccessorStore::remove_accessor(channel_id_);
-        src_ptr_->deregister_outchannel(channel_id_);
     }
 
     BroadcastChannel(const BroadcastChannel&) = delete;
@@ -53,7 +49,7 @@ class BroadcastChannel : public ChannelBase {
     BroadcastChannel(BroadcastChannel&&) = default;
     BroadcastChannel& operator=(BroadcastChannel&&) = default;
 
-    void customized_setup() override {
+    void buffer_accessor_setup() {
         broadcast_buffer_.resize(worker_info_->get_largest_tid() + 1);
         accessor_ = AccessorStore::create_accessor<std::unordered_map<KeyT, ValueT>>(
             channel_id_, local_id_, worker_info_->get_num_local_workers());
@@ -92,17 +88,9 @@ class BroadcastChannel : public ChannelBase {
 
     void set_clear_dict(bool clear) { clear_dict_each_progress_ = clear; }
 
-    void prepare() override {}
+    std::unordered_map<KeyT, ValueT>& get_local_dict() { return (*accessor_)[local_id_].storage(); }
 
-    void in(BinStream& bin) override {}
-
-    void out() override {
-        flush();
-        prepare_broadcast();
-    }
-
-    /// This method is only useful without list_execute
-    void flush() {
+    void send() override {
         this->inc_progress();
         int start = global_id_;
         for (int i = 0; i < broadcast_buffer_.size(); ++i) {
@@ -116,17 +104,17 @@ class BroadcastChannel : public ChannelBase {
                                       this->worker_info_->get_pids());
     }
 
-    /// This method is only useful without list_execute
-    void prepare_broadcast() {
+    void recv() override {
         // Check whether need to leave accessor_ (last round's accessor_)
         if (need_leave_accessor_)
             leave_accessor();
         need_leave_accessor_ = true;
 
-        auto& local_dict = (*accessor_)[local_id_].storage();
         while (mailbox_->poll(channel_id_, progress_)) {
             auto bin = mailbox_->recv(channel_id_, progress_);
-            process_bin(bin, local_dict);
+            if (bin_stream_processor_ != nullptr) {
+                bin_stream_processor_(&bin);
+            }
         }
         (*accessor_)[local_id_].commit();
     }
@@ -143,17 +131,6 @@ class BroadcastChannel : public ChannelBase {
                 (*accessor_)[i].leave();
         }
     }
-
-    void process_bin(BinStream& bin, std::unordered_map<KeyT, ValueT>& local_dict) {
-        while (bin.size() != 0) {
-            KeyT key;
-            ValueT value;
-            bin >> key >> value;
-            local_dict[key] = value;
-        }
-    }
-
-    ChannelSource* src_ptr_;
 
     bool clear_dict_each_progress_ = false;
     bool need_leave_accessor_ = false;

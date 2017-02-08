@@ -57,9 +57,20 @@ class Attr {
 
 // Create MigrateChannel without setting, for setup
 template <typename ObjT>
-MigrateChannel<ObjT> create_migrate_channel(ObjList<ObjT>& src_list, ObjList<ObjT>& dst_list) {
-    MigrateChannel<ObjT> migrate_channel(&src_list, &dst_list);
-    return migrate_channel;
+MigrateChannel<ObjT> create_migrate_channel(ObjList<ObjT>* src_list, ObjList<ObjT>* dst_list) {
+    auto ch = MigrateChannel<ObjT>();
+    ch.set_obj_list(src_list);
+    ch.set_bin_stream_processor([=](base::BinStream* bin_stream) {
+        while (bin_stream->size() != 0) {
+            ObjT obj;
+            *bin_stream >> obj;
+            auto idx = dst_list->add_object(std::move(obj));
+            dst_list->process_attribute(*bin_stream, idx);
+        }
+        if (dst_list->get_num_del() * 2 > dst_list->get_vector_size())
+            dst_list->deletion_finalize();
+    });
+    return ch;
 }
 
 TEST_F(TestMigrateChannel, Create) {
@@ -86,8 +97,9 @@ TEST_F(TestMigrateChannel, Create) {
     ObjList<Obj> dst_list;
 
     // MigrateChannel
-    auto migrate_channel = create_migrate_channel(src_list, dst_list);
+    auto migrate_channel = create_migrate_channel(&src_list, &dst_list);
     migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    migrate_channel.buffer_setup();
 }
 
 TEST_F(TestMigrateChannel, MigrateOther) {
@@ -118,14 +130,15 @@ TEST_F(TestMigrateChannel, MigrateOther) {
     src_list.add_object(Obj(57));
 
     // MigrateChannel
-    auto migrate_channel = create_migrate_channel(src_list, dst_list);
+    auto migrate_channel = create_migrate_channel(&src_list, &dst_list);
     migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    migrate_channel.buffer_setup();
     // migrate
     Obj* p = src_list.find(18);
     migrate_channel.migrate(*p, 0);  // migrate Obj(18) to thread 0
-    migrate_channel.flush();
+    migrate_channel.out();
     // migration done
-    migrate_channel.prepare_immigrants();
+    migrate_channel.in();
     Obj& obj = dst_list.get_data()[0];
 
     EXPECT_EQ(obj.id(), 18);
@@ -171,14 +184,15 @@ TEST_F(TestMigrateChannel, MigrateItself) {
     src_attr.set(idx, Attr("57"));
 
     // MigrateChannel
-    auto migrate_channel = create_migrate_channel(src_list, dst_list);
+    auto migrate_channel = create_migrate_channel(&src_list, &dst_list);
     migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    migrate_channel.buffer_setup();
     // migrate
     Obj* p = src_list.find(18);
     migrate_channel.migrate(*p, 0);  // migrate Obj(18) to thread 0
-    migrate_channel.flush();
+    migrate_channel.out();
     // migration done
-    migrate_channel.prepare_immigrants();
+    migrate_channel.in();
     Obj& obj = dst_list.get_data()[0];
     auto& dst_int = dst_list.get_attrlist<int>("int");
     auto& dst_attr = dst_list.get_attrlist<Attr>("attr");
@@ -229,14 +243,15 @@ TEST_F(TestMigrateChannel, MigrateOtherIncProgress) {
 
     // MigrateChannel
     // Round 1
-    auto migrate_channel = create_migrate_channel(src_list, dst_list);
+    auto migrate_channel = create_migrate_channel(&src_list, &dst_list);
     migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    migrate_channel.buffer_setup();
     // migrate
     Obj* p = src_list.find(18);
     migrate_channel.migrate(*p, 0);  // migrate Obj(18) to thread 0
-    migrate_channel.flush();
+    migrate_channel.out();
     // migration done
-    migrate_channel.prepare_immigrants();
+    migrate_channel.in();
     Obj& obj = dst_list.get_data()[0];
     auto& dst_int = dst_list.get_attrlist<int>("int");
     auto& dst_attr = dst_list.get_attrlist<Attr>("attr");
@@ -251,9 +266,9 @@ TEST_F(TestMigrateChannel, MigrateOtherIncProgress) {
     // migrate
     p = src_list.find(100);
     migrate_channel.migrate(*p, 0);  // migrate Obj(100) to thread 0
-    migrate_channel.flush();
+    migrate_channel.out();
     // migration done
-    migrate_channel.prepare_immigrants();
+    migrate_channel.in();
 
     EXPECT_EQ(dst_list.get_size(), 2);
     EXPECT_EQ(src_list.get_size(), 1);

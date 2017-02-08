@@ -68,8 +68,8 @@ void balance(ObjList<ObjT>& obj_list, Algo algo) {
     }
     obj_list.deletion_finalize();
 
-    migrate_channel.flush();
-    migrate_channel.prepare_immigrants();
+    migrate_channel.out();
+    migrate_channel.in();
     obj_list.sort();
 
     ChannelStore::drop_channel("tmp_balance_broadcast");
@@ -93,8 +93,8 @@ void globalize(ObjList<ObjT>& obj_list) {
             migrate_channel.migrate(obj, dst_thread_id);
     }
     obj_list.deletion_finalize();
-    migrate_channel.flush();
-    migrate_channel.prepare_immigrants();
+    migrate_channel.out();
+    migrate_channel.in();
     obj_list.sort();
 
     ChannelStore::drop_channel("tmp_globalize");
