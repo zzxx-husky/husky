@@ -19,6 +19,7 @@
 
 #include "base/serialization.hpp"
 #include "core/channel/channel_base.hpp"
+#include "core/shard.hpp"
 
 namespace husky {
 
@@ -34,12 +35,17 @@ class AggregatorChannel : public ChannelBase {
     virtual void out();
     virtual void customized_setup();
 
-    void default_setup(std::function<void()> something);
+    void default_setup(LocalMailbox* mailbox, std::function<void()> something);
     void send(std::vector<BinStream>& bins);
     bool poll();
     BinStream recv_();
 
+    void set_source(Shard* source);
+    void set_destination(Shard* destination);
+
    private:
+    Shard* source_ = nullptr;
+    Shard* destination_ = nullptr;
     std::function<void()> do_something = nullptr;
 };
 

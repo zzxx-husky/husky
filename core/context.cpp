@@ -28,17 +28,10 @@ void Context::create_mailbox_env() {
 
     global_.local_mailboxes_.resize(get_num_local_workers());
     int local_tid = 0;
-    for (int global_tid = 0; global_tid < get_num_global_workers(); global_tid++) {
-        if (global_.worker_info.get_process_id(global_tid) == get_process_id()) {
-            global_.local_mailboxes_.at(local_tid).reset(new LocalMailbox(&global_.zmq_context_));
-            global_.local_mailboxes_.at(local_tid)->set_process_id(get_process_id());
-            global_.local_mailboxes_.at(local_tid)->set_thread_id(global_tid);
-            global_.mailbox_event_loop->register_mailbox(*(global_.local_mailboxes_.at(local_tid).get()));
-            local_tid += 1;
-        } else {
-            global_.mailbox_event_loop->register_peer_thread(global_.worker_info.get_process_id(global_tid),
-                                                             global_tid);
-        }
+    for (int local_tid = 0; local_tid < get_num_local_workers(); ++local_tid) {
+        global_.local_mailboxes_.at(local_tid).reset(new LocalMailbox(&global_.zmq_context_));
+        global_.local_mailboxes_.at(local_tid)->set_local_id(local_tid);
+        global_.mailbox_event_loop->register_mailbox(*(global_.local_mailboxes_.at(local_tid).get()));
     }
 
     for (int proc_id = 0; proc_id < get_num_processes(); proc_id++) {

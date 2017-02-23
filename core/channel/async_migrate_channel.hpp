@@ -32,9 +32,7 @@ using base::BinStream;
 template <typename ObjT>
 class AsyncMigrateChannel : public MigrateChannel<ObjT> {
    public:
-    explicit AsyncMigrateChannel(ObjList<ObjT>* objlist) : MigrateChannel<ObjT>(objlist, objlist) {
-        this->set_as_async_channel();
-    }
+    AsyncMigrateChannel() {}
 
     AsyncMigrateChannel(const AsyncMigrateChannel&) = delete;
     AsyncMigrateChannel& operator=(const AsyncMigrateChannel&) = delete;
@@ -43,14 +41,17 @@ class AsyncMigrateChannel : public MigrateChannel<ObjT> {
     AsyncMigrateChannel& operator=(AsyncMigrateChannel&&) = default;
 
     /// This method is only useful without list_execute
-    void out() override {
+    void send() override {
         // No increment progress id here
-        int start = this->global_id_;
+        int start = std::rand();
+        auto shard_info_iter = ShardInfoIter(*this->destination_);
         for (int i = 0; i < this->migrate_buffer_.size(); ++i) {
             int dst = (start + i) % this->migrate_buffer_.size();
+            auto pid_and_sid = shard_info_iter.next();
             if (this->migrate_buffer_[dst].size() == 0)
                 continue;
-            this->mailbox_->send(dst, this->channel_id_, this->progress_, this->migrate_buffer_[dst]);
+            this->mailbox_->send(pid_and_sid.first, pid_and_sid.second, 
+                this->channel_id_, this->progress_, this->migrate_buffer_[dst]);
             this->migrate_buffer_[dst].purge();
         }
         // No send_complete here

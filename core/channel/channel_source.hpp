@@ -18,10 +18,11 @@
 #include <vector>
 
 #include "core/channel/channel_base.hpp"
+#include "core/shard.hpp"
 
 namespace husky {
 
-class ChannelSource {
+class ChannelSource: public Shard {
    public:
     std::vector<ChannelBase*> get_outchannels();
     void register_outchannel(size_t channel_id, ChannelBase* outchannel);

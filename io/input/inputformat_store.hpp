@@ -48,7 +48,7 @@ class InputFormatStore {
     static MongoDBInputFormat& create_mongodb_inputformat();
 #endif
 
-    static void drop_all_inputformats();
+    static void drop_all_inputformats(InputFormatMap*);
     static void init_inputformat_map();
     static void free_inputformat_map();
     static InputFormatMap& get_inputformat_map();

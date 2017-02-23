@@ -26,34 +26,15 @@ enum class SessionLocalPriority { Level1, Level2 };
 
 class SessionLocal {
    public:
-    static std::vector<std::function<void()>>& get_initializers();
-    static std::vector<std::function<void()>>& get_finalizers();
-    static std::vector<std::pair<SessionLocalPriority, std::function<void()>>>& get_thread_finalizers();
-    static void register_initializer(std::function<void()> init);
+    static std::vector<std::pair<SessionLocalPriority, std::function<void()>>>& get_finalizers();
+    static void register_finalizer(SessionLocalPriority prior, std::function<void()> fina);
     static void register_finalizer(std::function<void()> fina);
-    static void register_thread_finalizer(SessionLocalPriority prior, std::function<void()> fina);
-    static void initialize();
     static void finalize();
-    static void thread_finalize();
-    static bool is_session_end();
-
-   private:
-    static bool session_end_;
-};
-
-class RegSessionInitializer {
-   public:
-    explicit RegSessionInitializer(std::function<void()> init);
 };
 
 class RegSessionFinalizer {
    public:
-    explicit RegSessionFinalizer(std::function<void()> fina);
-};
-
-class RegSessionThreadFinalizer {
-   public:
-    explicit RegSessionThreadFinalizer(SessionLocalPriority prior, std::function<void()> fina);
+    explicit RegSessionFinalizer(SessionLocalPriority prior, std::function<void()> fina);
 };
 
 }  // namespace base

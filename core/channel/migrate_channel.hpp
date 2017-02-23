@@ -22,7 +22,7 @@
 #include "core/hash_ring.hpp"
 #include "core/mailbox.hpp"
 #include "core/objlist.hpp"
-#include "core/worker_info.hpp"
+#include "core/shard.hpp"
 
 namespace husky {
 
@@ -39,32 +39,37 @@ class MigrateChannel : public ChannelBase {
     MigrateChannel(MigrateChannel&&) = default;
     MigrateChannel& operator=(MigrateChannel&&) = default;
 
-    void buffer_setup() { migrate_buffer_.resize(this->worker_info_->get_largest_tid() + 1); }
+    void buffer_setup() { migrate_buffer_.resize(this->destination_->get_num_shards()); }
 
-    void migrate(ObjT& obj, int dst_thread_id) {
-        auto idx = this->obj_list_ptr_->delete_object(&obj);
-        migrate_buffer_[dst_thread_id] << obj;
-        this->obj_list_ptr_->migrate_attribute(migrate_buffer_[dst_thread_id], idx);
+    void migrate(ObjT& obj, int dst_shard_id) {
+        auto idx = this->source_obj_list_->delete_object(&obj);
+        migrate_buffer_[dst_shard_id] << obj;
+        this->source_obj_list_->migrate_attribute(migrate_buffer_[dst_shard_id], idx);
     }
 
-    void set_obj_list(ObjList<ObjT>* obj_list_ptr) { obj_list_ptr_ = obj_list_ptr; }
+    void set_source(ObjList<ObjT>* obj_list_ptr) { source_obj_list_ = obj_list_ptr; }
+    void set_destination(ObjList<ObjT>* destination) { destination_ = destination; }
 
     void send() override {
         this->inc_progress();
-        int start = this->global_id_;
+        int start = std::rand();
+        auto shard_info_iter = ShardInfoIter(*this->source_obj_list_);
         for (int i = 0; i < migrate_buffer_.size(); ++i) {
             int dst = (start + i) % migrate_buffer_.size();
+            auto pid_and_sid = shard_info_iter.next();
             if (migrate_buffer_[dst].size() == 0)
                 continue;
-            this->mailbox_->send(dst, this->channel_id_, this->progress_, migrate_buffer_[dst]);
+            this->mailbox_->send(pid_and_sid.first, pid_and_sid.second,
+                this->channel_id_, this->progress_, migrate_buffer_[dst]);
             migrate_buffer_[dst].purge();
         }
-        this->mailbox_->send_complete(this->channel_id_, this->progress_, this->worker_info_->get_local_tids(),
-                                      this->worker_info_->get_pids());
+        this->mailbox_->send_complete(this->channel_id_, this->progress_, this->source_obj_list_->get_num_local_shards(),
+                                      this->destination_->get_pids());
     }
 
    protected:
-    ObjList<ObjT>* obj_list_ptr_;
+    ObjList<ObjT>* source_obj_list_ = nullptr;
+    Shard* destination_ = nullptr;
     std::vector<BinStream> migrate_buffer_;
 };
 

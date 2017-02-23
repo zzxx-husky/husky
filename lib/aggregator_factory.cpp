@@ -105,7 +105,12 @@ void AggregatorFactory::call_once(const std::function<void()>& lambda) {
 void AggregatorFactory::init_factory() {
     AggregatorFactoryBase::init_factory();
     shared_ = static_cast<SharedData*>(get_shared_data());
-    aggregator_channel_.default_setup(std::bind(&AggregatorFactory::synchronize, this));
+    aggregator_shard_.initialize_shard(Context::get_local_tid(), Context::get_worker_info());
+    aggregator_channel_.default_setup(
+        Context::get_mailbox(),
+        std::bind(&AggregatorFactory::synchronize, this));
+    aggregator_channel_.set_source(&aggregator_shard_);
+    aggregator_channel_.set_destination(&aggregator_shard_);
 }
 
 void AggregatorFactory::send(AggregatorChannel& channel, std::vector<BinStream>& bin) { channel.send(bin); }

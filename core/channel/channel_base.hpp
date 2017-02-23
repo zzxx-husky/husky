@@ -17,10 +17,10 @@
 #include <cstdlib>
 #include <vector>
 
+#include "base/exception.hpp"
 #include "base/serialization.hpp"
 #include "core/hash_ring.hpp"
 #include "core/mailbox.hpp"
-#include "core/worker_info.hpp"
 
 namespace husky {
 
@@ -32,19 +32,14 @@ class ChannelBase {
 
     inline LocalMailbox* get_mailbox() const { return mailbox_; }
     inline size_t get_channel_id() const { return channel_id_; }
-    inline size_t get_global_id() const { return global_id_; }
-    inline size_t get_local_id() const { return local_id_; }
     inline size_t get_progress() const { return progress_; }
 
     // Setters of basic information
 
-    void set_local_id(size_t local_id) { local_id_ = local_id; }
-    void set_global_id(size_t global_id) { global_id_ = global_id; }
-    virtual void set_worker_info(const WorkerInfo& worker_info) { worker_info_.reset(new WorkerInfo(worker_info)); }
     void set_mailbox(LocalMailbox* mailbox) { mailbox_ = mailbox; }
 
     // Setup API for unit test
-    void setup(size_t local_id, size_t global_id, const WorkerInfo& worker_info, LocalMailbox* mailbox);
+    void setup(LocalMailbox* mailbox);
 
     // Top-level APIs
 
@@ -98,11 +93,8 @@ class ChannelBase {
     ChannelBase& operator=(ChannelBase&&) = default;
 
     size_t channel_id_;
-    size_t global_id_;
-    size_t local_id_;
     size_t progress_;
 
-    std::unique_ptr<WorkerInfo> worker_info_;
     LocalMailbox* mailbox_ = nullptr;
 
     std::function<void(base::BinStream*)> bin_stream_processor_ = nullptr;

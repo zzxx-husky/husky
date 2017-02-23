@@ -19,6 +19,7 @@
 #include <string>
 
 #include "base/log.hpp"
+#include "base/session_local.hpp"
 
 namespace husky {
 namespace base {
@@ -57,6 +58,12 @@ void call_once_each_time(const Func& func, Args&&... args) {
     gCallOnceGeneration++;
 
     std::lock_guard<std::mutex> guard(gCallOnceMutex);
+    if (gCallOnceFlag == 0) {
+        // if it's used, reset it when finalization
+        base::SessionLocal::register_finalizer([](){
+            gCallOnceFlag = 0;
+        });
+    }
     if (gCallOnceGeneration > gCallOnceFlag) {
         func(args...);
         gCallOnceFlag = gCallOnceGeneration;

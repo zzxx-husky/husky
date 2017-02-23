@@ -30,7 +30,7 @@ TEST_F(TestMailbox, InitAndDelete) {
     el->set_process_id(0);
     auto* recver = new CentralRecver(&zmq_context, "inproc://test");
     auto* mailbox = new LocalMailbox(&zmq_context);
-    mailbox->set_thread_id(0);
+    mailbox->set_local_id(0);
     el->register_mailbox(*mailbox);
 
     delete el;
@@ -46,15 +46,15 @@ TEST_F(TestMailbox, SendRecvOnce) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // send a message
     BinStream send_bin_stream;
     int send_int = 1;
     send_bin_stream << send_int;
-    mailbox.send(0, 0, 0, send_bin_stream);
-    mailbox.send_complete(0, 0, {0}, {0});
+    mailbox.send(0, 0, 0, 0, send_bin_stream);
+    mailbox.send_complete(0, 0, 1, {0});
 
     // Recv the message
     mailbox.poll(0, 0);
@@ -73,15 +73,15 @@ TEST_F(TestMailbox, SendRecvOnceAsync) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // send a message
     BinStream send_bin_stream;
     int send_int = 1;
     send_bin_stream << send_int;
-    mailbox.send(0, 0, 0, send_bin_stream);
-    mailbox.send_complete(0, 0, {0}, {0});
+    mailbox.send(0, 0, 0, 0, send_bin_stream);
+    mailbox.send_complete(0, 0, 1, {0});
 
     // Recv the message
     while (1) {
@@ -104,15 +104,15 @@ TEST_F(TestMailbox, SendRecvOnceAsyncTimeout) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // send a message
     BinStream send_bin_stream;
     int send_int = 1;
     send_bin_stream << send_int;
-    mailbox.send(0, 0, 0, send_bin_stream);
-    mailbox.send_complete(0, 0, {0}, {0});
+    mailbox.send(0, 0, 0, 0, send_bin_stream);
+    mailbox.send_complete(0, 0, 1, {0});
 
     // Recv the message
     bool if_recv = false;
@@ -138,7 +138,7 @@ TEST_F(TestMailbox, SendRecvMultiple) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // send a message
@@ -147,8 +147,8 @@ TEST_F(TestMailbox, SendRecvMultiple) {
     float send_float = 4.19;
     send_bin_stream << send_int;
     send_bin_stream << send_float;
-    mailbox.send(0, 0, 0, send_bin_stream);
-    mailbox.send_complete(0, 0, {0}, {0});
+    mailbox.send(0, 0, 0, 0, send_bin_stream);
+    mailbox.send_complete(0, 0, 1, {0});
 
     // Recv the message
     mailbox.poll(0, 0);
@@ -170,10 +170,10 @@ TEST_F(TestMailbox, Multithread) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox_0(&zmq_context);
-    mailbox_0.set_thread_id(0);
+    mailbox_0.set_local_id(0);
     el.register_mailbox(mailbox_0);
     LocalMailbox mailbox_1(&zmq_context);
-    mailbox_1.set_thread_id(1);
+    mailbox_1.set_local_id(1);
     el.register_mailbox(mailbox_1);
 
     // send a message
@@ -182,10 +182,10 @@ TEST_F(TestMailbox, Multithread) {
     float send_float = 4.19;
     send_bin_stream << send_int;
     send_bin_stream << send_float;
-    mailbox_1.send(0, 0, 0, send_bin_stream);
+    mailbox_1.send(0, 0, 0, 0, send_bin_stream);
 
-    mailbox_1.send_complete(0, 0, {0, 1}, {0});
-    mailbox_0.send_complete(0, 0, {0, 1}, {0});
+    mailbox_1.send_complete(0, 0, 2, {0});
+    mailbox_0.send_complete(0, 0, 2, {0});
 
     // Recv the message
     assert(mailbox_1.poll(0, 0) == false);
@@ -208,7 +208,7 @@ TEST_F(TestMailbox, TwoProcesses) {
     el_0.set_process_id(0);
     CentralRecver recver_0(&zmq_context_0, "ipc://test-0");
     LocalMailbox mailbox_0(&zmq_context_0);
-    mailbox_0.set_thread_id(0);
+    mailbox_0.set_local_id(0);
     el_0.register_mailbox(mailbox_0);
 
     // Setup thread 1 on process 1
@@ -217,14 +217,12 @@ TEST_F(TestMailbox, TwoProcesses) {
     el_1.set_process_id(1);
     CentralRecver recver_1(&zmq_context_1, "ipc://test-1");
     LocalMailbox mailbox_1(&zmq_context_1);
-    mailbox_1.set_thread_id(1);
+    mailbox_1.set_local_id(1);
     el_1.register_mailbox(mailbox_1);
 
     // Connect
     el_0.register_peer_recver(1, "ipc://test-1");
-    el_0.register_peer_thread(1, 1);
     el_1.register_peer_recver(0, "ipc://test-0");
-    el_1.register_peer_thread(0, 0);
 
     // Hash ring
     HashRing hash_ring;
@@ -237,10 +235,10 @@ TEST_F(TestMailbox, TwoProcesses) {
     float send_float = 4.19;
     send_bin_stream << send_int;
     send_bin_stream << send_float;
-    mailbox_0.send(1, 0, 0, send_bin_stream);
+    mailbox_0.send(1, 1, 0, 0, send_bin_stream);
 
-    mailbox_0.send_complete(0, 0, {0}, {0, 1});
-    mailbox_1.send_complete(0, 0, {1}, {0, 1});
+    mailbox_0.send_complete(0, 0, 1, {0, 1});
+    mailbox_1.send_complete(0, 0, 1, {0, 1});
 
     // Recv the message
     assert(mailbox_0.poll(0, 0) == false);
@@ -262,7 +260,7 @@ TEST_F(TestMailbox, Iterative) {
     el_0.set_process_id(0);
     CentralRecver recver_0(&zmq_context_0, "ipc://test-0");
     LocalMailbox mailbox_0(&zmq_context_0);
-    mailbox_0.set_thread_id(0);
+    mailbox_0.set_local_id(0);
     el_0.register_mailbox(mailbox_0);
 
     // Setup thread 1 on process 1
@@ -271,14 +269,12 @@ TEST_F(TestMailbox, Iterative) {
     el_1.set_process_id(1);
     CentralRecver recver_1(&zmq_context_1, "ipc://test-1");
     LocalMailbox mailbox_1(&zmq_context_1);
-    mailbox_1.set_thread_id(1);
+    mailbox_1.set_local_id(1);
     el_1.register_mailbox(mailbox_1);
 
     // Connect
     el_0.register_peer_recver(1, "ipc://test-1");
-    el_0.register_peer_thread(1, 1);
     el_1.register_peer_recver(0, "ipc://test-0");
-    el_1.register_peer_thread(0, 0);
 
     // Hash ring
     HashRing hash_ring;
@@ -292,10 +288,10 @@ TEST_F(TestMailbox, Iterative) {
         float send_float = 4.19;
         send_bin_stream << send_int;
         send_bin_stream << send_float;
-        mailbox_0.send(1, 0, i, send_bin_stream);
+        mailbox_0.send(1, 1, 0, i, send_bin_stream);
 
-        mailbox_0.send_complete(0, i, {0}, {0, 1});
-        mailbox_1.send_complete(0, i, {1}, {0, 1});
+        mailbox_0.send_complete(0, i, 1, {0, 1});
+        mailbox_1.send_complete(0, i, 1, {0, 1});
 
         // Recv the message
         assert(mailbox_0.poll(0, i) == false);
@@ -323,7 +319,7 @@ TEST_F(TestMailbox, OutOfOrder) {
     std::vector<LocalMailbox*> mailboxes;
     for (int i = 0; i < 4; i++) {
         mailboxes.push_back(new LocalMailbox(&zmq_context));
-        mailboxes[i]->set_thread_id(i);
+        mailboxes[i]->set_local_id(i);
         el->register_mailbox(*mailboxes[i]);
         hash_ring.insert(i, 0);
     }
@@ -335,10 +331,10 @@ TEST_F(TestMailbox, OutOfOrder) {
                 for (int i_ = 0; i_ < 4; i_++) {
                     BinStream send_bin_stream;
                     send_bin_stream << i;
-                    mailboxes[i]->send(i_, i, j, send_bin_stream);
+                    mailboxes[i]->send(0, i_, i, j, send_bin_stream);
                 }
                 for (int i_ = 0; i_ < 4; i_++)
-                    mailboxes[i]->send_complete(i_, j, {0, 1, 2, 3}, {0});
+                    mailboxes[i]->send_complete(i_, j, 4, {0});
                 int sum = 0;
                 BinStream recv_bin_stream;
                 std::vector<std::pair<int, int>> poll_list = {{0, j}, {1, j}, {2, j}, {3, j}};

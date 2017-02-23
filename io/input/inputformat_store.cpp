@@ -18,6 +18,7 @@
 #include <unordered_map>
 
 #include "base/session_local.hpp"
+#include "core/context.hpp"
 #include "core/utils.hpp"
 
 namespace husky {
@@ -26,17 +27,12 @@ namespace io {
 thread_local int g_default_inputformat_id = 0;
 thread_local InputFormatMap* InputFormatStore::s_inputformat_map = nullptr;
 
-// set finalize_all_inputformats priority to Level1, the higher the level the higher the priorty
-static thread_local base::RegSessionThreadFinalizer finalize_all_inputformats(base::SessionLocalPriority::Level1, []() {
-    InputFormatStore::drop_all_inputformats();
-    InputFormatStore::free_inputformat_map();
-});
-
 LineInputFormat& InputFormatStore::create_line_inputformat() {
     InputFormatMap& inputformat_map = get_inputformat_map();
     int id = g_default_inputformat_id++;
     ASSERT_MSG(inputformat_map.find(id) == inputformat_map.end(), "Should not be reached");
     auto* line_input_format = new LineInputFormat();
+    line_input_format->initialize_shard(Context::get_local_tid(), Context::get_worker_info());
     inputformat_map.insert({id, line_input_format});
     return *line_input_format;
 }
@@ -46,6 +42,7 @@ ChunkInputFormat& InputFormatStore::create_chunk_inputformat(const int& chunk_si
     int id = g_default_inputformat_id++;
     ASSERT_MSG(inputformat_map.find(id) == inputformat_map.end(), "Should not be reached");
     auto* chunk_input_format = new ChunkInputFormat(chunk_size);
+    chunk_input_format->initialize_shard(Context::get_local_tid(), Context::get_worker_info());
     inputformat_map.insert({id, chunk_input_format});
     return *chunk_input_format;
 }
@@ -55,6 +52,7 @@ SeparatorInputFormat& InputFormatStore::create_separator_inputformat(const std::
     int id = g_default_inputformat_id++;
     ASSERT_MSG(inputformat_map.find(id) == inputformat_map.end(), "Should not be reached");
     auto* separator_input_format = new SeparatorInputFormat(pattern);
+    separator_input_format->initialize_shard(Context::get_local_tid(), Context::get_worker_info());
     inputformat_map.insert({id, separator_input_format});
     return *separator_input_format;
 }
@@ -65,6 +63,7 @@ XMLInputFormat& InputFormatStore::create_xml_inputformat(const std::string& star
     int id = g_default_inputformat_id++;
     ASSERT_MSG(inputformat_map.find(id) == inputformat_map.end(), "Should not be reached");
     auto* xml_input_format = new XMLInputFormat(start_pattern, end_pattern);
+    xml_input_format->initialize_shard(Context::get_local_tid(), Context::get_worker_info());
     inputformat_map.insert({id, xml_input_format});
     return *xml_input_format;
 }
@@ -74,6 +73,7 @@ BinaryInputFormat& InputFormatStore::create_binary_inputformat(const std::string
     int id = g_default_inputformat_id++;
     ASSERT_MSG(inputformat_map.find(id) == inputformat_map.end(), "Should not be reached");
     auto* binary_input_format = new BinaryInputFormat(url, filter);
+    binary_input_format->initialize_shard(Context::get_local_tid(), Context::get_worker_info());
     inputformat_map.insert({id, binary_input_format});
     return *binary_input_format;
 }
@@ -84,6 +84,7 @@ FlumeInputFormat& InputFormatStore::create_flume_inputformat(std::string rcv_hos
     int id = g_default_inputformat_id++;
     ASSERT_MSG(inputformat_map.find(id) == inputformat_map.end(), "Should not be reached");
     auto* flume_input_format = new FlumeInputFormat(rcv_host, rcv_port);
+    flume_input_format->initialize_shard(Context::get_local_tid(), Context::get_worker_info());
     inputformat_map.insert({id, flume_input_format});
     return *flume_input_format;
 }
@@ -95,30 +96,32 @@ MongoDBInputFormat& InputFormatStore::create_mongodb_inputformat() {
     int id = g_default_inputformat_id++;
     ASSERT_MSG(inputformat_map.find(id) == inputformat_map.end(), "Should not be reached");
     auto* mongodb_input_format = new MongoDBInputFormat();
+    mongodb_input_format->initialize_shard(Context::get_local_tid(), Context::get_worker_info());
     inputformat_map.insert({id, mongodb_input_format});
     return *mongodb_input_format;
 }
 #endif
 
-void InputFormatStore::drop_all_inputformats() {
-    if (s_inputformat_map == nullptr)
+void InputFormatStore::drop_all_inputformats(InputFormatMap* map) {
+    if (map == nullptr)
         return;
 
-    for (auto& inputformat_pair : (*s_inputformat_map)) {
+    for (auto& inputformat_pair : (*map)) {
         if (inputformat_pair.second != nullptr)
             delete inputformat_pair.second;
     }
-    s_inputformat_map->clear();
+    map->clear();
 }
 
 void InputFormatStore::init_inputformat_map() {
-    if (s_inputformat_map == nullptr)
+    if (s_inputformat_map == nullptr) {
         s_inputformat_map = new InputFormatMap();
-}
-
-void InputFormatStore::free_inputformat_map() {
-    delete s_inputformat_map;
-    s_inputformat_map = nullptr;
+        base::SessionLocal::register_finalizer(base::SessionLocalPriority::Level1, [=](){
+            // set finalize_all_inputformats priority to Level1, the higher the level the higher the priorty
+            drop_all_inputformats(s_inputformat_map);
+            delete s_inputformat_map;
+        });
+    }
 }
 
 InputFormatMap& InputFormatStore::get_inputformat_map() {

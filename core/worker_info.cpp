@@ -53,6 +53,15 @@ void WorkerInfo::set_hostname(int process_id, const std::string& hostname) {
     if (hostname_.size() <= process_id)
         hostname_.resize(process_id + 1);
     hostname_[process_id] = hostname;
+    hostname_to_pid_[hostname] = process_id;
+}
+
+int WorkerInfo::get_pid_by_hostname(const std::string& hostname) const {
+    if (hostname_to_pid_.find(hostname) == hostname_to_pid_.end()) {
+        throw base::HuskyException(
+            "Invalid hostname provided: " + hostname);
+    }
+    return hostname_to_pid_.at(hostname);
 }
 
 }  // namespace husky

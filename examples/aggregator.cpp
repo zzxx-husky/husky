@@ -65,21 +65,21 @@ void aggregator() {
         infmt.set_input(husky::Context::get_param("input"));
 
         auto& word_list = ObjListStore::create_objlist<Word>();
-        auto& ch = ChannelStore::create_push_combined_channel<int, SumCombiner<int>>(infmt, word_list);
+        auto ch = ChannelStore::create_push_combined_channel<int, SumCombiner<int>>(&infmt, &word_list);
 
-        load(infmt, {&ch}, [&](boost::string_ref& chunk) {
+        load(infmt, {ch}, [&](boost::string_ref& chunk) {
             if (chunk.size() == 0)
                 return;
             boost::char_separator<char> sep(" \t");
             boost::tokenizer<boost::char_separator<char>> tok(chunk, sep);
             for (auto& w : tok) {
-                ch.push(1, w);
+                ch->push(1, w);
             }
         });
 
         // To synchronize using aggregator channel
-        list_execute(word_list, {&ch}, {&ac}, [&](Word& word) {
-            int o = ch.get(word);
+        list_execute(word_list, {ch}, {&ac}, [&](Word& word) {
+            int o = ch->get(word);
             tot_word.update(1);
             tot_occurence.update(o);
             max_occurence.update({word.id(), o});

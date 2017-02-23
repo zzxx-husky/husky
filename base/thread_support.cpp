@@ -24,7 +24,6 @@ namespace base {
 int gCallOnceFlag = 0;
 thread_local int gCallOnceGeneration = 0;
 std::mutex gCallOnceMutex;
-RegSessionInitializer thread_support([]() { gCallOnceFlag = 0; });
 
 HBarrier::HBarrier(int count) : count_(count), total_(count) {}
 

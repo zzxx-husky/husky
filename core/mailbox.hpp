@@ -44,8 +44,8 @@ class LocalMailbox {
     explicit LocalMailbox(zmq::context_t* zmq_context);
     virtual ~LocalMailbox();
 
-    inline int get_thread_id() const { return thread_id_; }
-    void set_thread_id(int thread_id);
+    inline int get_local_id() const { return local_id_; }
+    void set_local_id(int local_id);
     void set_process_id(int process_id);
 
     /// \brief Use thie before receiving incoming incoming communication.
@@ -106,12 +106,13 @@ class LocalMailbox {
     /// that, the `send_complete` method should be used to indicate the end of this
     /// batch of communication.
     ///
-    /// @param thread_id ID of the destination worker thread.
+    /// @param process_id ID of the destination process.
     /// @param channel_id ID of the Channel for the communication.
+    /// @param shard_id ID of the shard of the channel that receives this message.
     /// @param progress Progress of the communication. Progress should always
     ///        be increasing.
     /// @param bin_stream The actual communication in the form of BinStream.
-    void send(int thread_id, int channel_id, int progress, BinStream& bin_stream);
+    void send(int process_id, int shard_id, int channel_id, int progress, BinStream& bin_stream);
 
     /// \brief Indicate that a round of outgoing communication finishes.
     ///
@@ -119,10 +120,9 @@ class LocalMailbox {
     ///
     /// @param channel_id Channel of the communication.
     /// @param progress Progress of the corresponding Channel.
-    /// @param sender_tids Global thread ids of the *local* process that issue
-    ///        the outgoing communication
+    /// @param num_local_senders number of local senders that issue the outgoing communication
     /// @param recver_tids Global ids of threads that will possibly receive the communication
-    void send_complete(int channel_id, int progress, const std::vector<int>& sender_tids,
+    void send_complete(int channel_id, int progress, int num_local_senders,
                        const std::vector<int>& recver_tids);
 
     /// \brief Receive incoming communication
@@ -159,8 +159,7 @@ class LocalMailbox {
     friend class MailboxEventLoop;
 
    protected:
-    int thread_id_;
-    int process_id_ = 0;
+    int local_id_;
     zmq::context_t* zmq_context_;
     std::condition_variable poll_cv_;
     std::mutex notify_lock_;
@@ -198,17 +197,17 @@ class MailboxEventLoop {
     // Join the thread and free resources
     virtual ~MailboxEventLoop();
 
+    // This method must be called for all local_mailbox before sending any message.
     void register_mailbox(LocalMailbox& local_mailbox);
     void set_process_id(int process_id);
     void register_peer_recver(int process_id, const std::string& addr);
-    void register_peer_thread(int process_id, int thread_id);
     void register_event_handler(int event_type, std::function<void()> handler);
 
    protected:
     void recv_comm_handler();
-    void _recv_comm_handler(int thread_id, int channel_id, int progress, BinStream* recv_bin_stream_ptr);
+    void _recv_comm_handler(int shard_id, int channel_id, int progress, BinStream* recv_bin_stream_ptr);
     void send_comm_handler();
-    void _send_comm_handler(int thread_id, int channel_id, int progress, BinStream* send_bin_stream_ptr);
+    void _send_comm_handler(int process_id, int shard_id, int channel_id, int progress, BinStream* send_bin_stream_ptr);
     void send_comm_complete_handler();
     void _send_comm_complete_handler(int channel_id, int progress, int num_local_threads,
                                      const std::vector<int>& global_pids);
@@ -236,9 +235,9 @@ class EventLoopConnector {
    public:
     explicit EventLoopConnector(zmq::context_t* zmq_context);
 
-    void generate_in_comm_event(int thread_id, int channel_id, int progress, BinStream* bin_stream);
+    void generate_in_comm_event(int shard_id, int channel_id, int progress, BinStream* bin_stream);
     void generate_in_comm_complete_event(int channel_id, int progress, int num_global_sync_proceses);
-    void generate_out_comm_event(int thread_id, int channel_id, int progress, BinStream& bin_stream);
+    void generate_out_comm_event(int process_id, int shard_id, int channel_id, int progress, BinStream& bin_stream);
     void generate_out_comm_complete_event(int channel_id, int progress, int num_local_sender_threads,
                                           std::vector<int>* global_pids_ptr);
 

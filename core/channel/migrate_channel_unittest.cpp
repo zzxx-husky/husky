@@ -59,7 +59,8 @@ class Attr {
 template <typename ObjT>
 MigrateChannel<ObjT> create_migrate_channel(ObjList<ObjT>* src_list, ObjList<ObjT>* dst_list) {
     auto ch = MigrateChannel<ObjT>();
-    ch.set_obj_list(src_list);
+    ch.set_source(src_list);
+    ch.set_destination(dst_list);
     ch.set_bin_stream_processor([=](base::BinStream* bin_stream) {
         while (bin_stream->size() != 0) {
             ObjT obj;
@@ -84,7 +85,7 @@ TEST_F(TestMigrateChannel, Create) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // WorkerInfo Setup
@@ -98,7 +99,7 @@ TEST_F(TestMigrateChannel, Create) {
 
     // MigrateChannel
     auto migrate_channel = create_migrate_channel(&src_list, &dst_list);
-    migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    migrate_channel.setup(&mailbox);
     migrate_channel.buffer_setup();
 }
 
@@ -113,7 +114,7 @@ TEST_F(TestMigrateChannel, MigrateOther) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // WorkerInfo Setup
@@ -131,7 +132,7 @@ TEST_F(TestMigrateChannel, MigrateOther) {
 
     // MigrateChannel
     auto migrate_channel = create_migrate_channel(&src_list, &dst_list);
-    migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    migrate_channel.setup(&mailbox);
     migrate_channel.buffer_setup();
     // migrate
     Obj* p = src_list.find(18);
@@ -157,7 +158,7 @@ TEST_F(TestMigrateChannel, MigrateItself) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // WorkerInfo Setup
@@ -185,7 +186,7 @@ TEST_F(TestMigrateChannel, MigrateItself) {
 
     // MigrateChannel
     auto migrate_channel = create_migrate_channel(&src_list, &dst_list);
-    migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    migrate_channel.setup(&mailbox);
     migrate_channel.buffer_setup();
     // migrate
     Obj* p = src_list.find(18);
@@ -215,7 +216,7 @@ TEST_F(TestMigrateChannel, MigrateOtherIncProgress) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // WorkerInfo Setup
@@ -244,7 +245,7 @@ TEST_F(TestMigrateChannel, MigrateOtherIncProgress) {
     // MigrateChannel
     // Round 1
     auto migrate_channel = create_migrate_channel(&src_list, &dst_list);
-    migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    migrate_channel.setup(&mailbox);
     migrate_channel.buffer_setup();
     // migrate
     Obj* p = src_list.find(18);

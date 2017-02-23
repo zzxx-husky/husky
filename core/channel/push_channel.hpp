@@ -21,7 +21,7 @@
 #include "core/channel/channel_impl.hpp"
 #include "core/hash_ring.hpp"
 #include "core/mailbox.hpp"
-#include "core/worker_info.hpp"
+#include "core/shard.hpp"
 
 namespace husky {
 
@@ -33,33 +33,30 @@ class PushChannel : public ChannelBase {
     // The following are virtual methods
 
     void send() override {
-        int start = this->global_id_;
+        int start = std::rand();
+        auto shard_info_iter = ShardInfoIter(*this->destination_);
         for (int i = 0; i < send_buffer_.size(); ++i) {
             int dst = (start + i) % send_buffer_.size();
+            auto pid_and_sid = shard_info_iter.next();
             if (send_buffer_[dst].size() == 0)
                 continue;
-            this->mailbox_->send(dst, this->channel_id_, this->progress_ + 1, send_buffer_[dst]);
+            this->mailbox_->send(pid_and_sid.first, pid_and_sid.second,
+                this->channel_id_, this->progress_ + 1, send_buffer_[dst]);
             send_buffer_[dst].purge();
         }
     }
 
     void post_send() override {
         this->inc_progress();
-        this->mailbox_->send_complete(this->channel_id_, this->progress_, this->worker_info_->get_local_tids(),
-                                      this->worker_info_->get_pids());
-    }
-
-    void set_worker_info(const WorkerInfo& worker_info) override {
-        worker_info_.reset(new WorkerInfo(worker_info));
-        if (send_buffer_.size() != worker_info_->get_largest_tid() + 1)
-            send_buffer_.resize(worker_info_->get_largest_tid() + 1);
+        this->mailbox_->send_complete(this->channel_id_, this->progress_, this->source_->get_num_local_shards(),
+                                      this->destination_->get_pids());
     }
 
     // The following are specific to this channel type
 
     inline void push(const MsgT& msg, const typename DstObjT::KeyT& key) {
-        int dst_worker_id = this->worker_info_->get_hash_ring().hash_lookup(key);
-        send_buffer_[dst_worker_id] << key << msg;
+        int dst_shard_id = this->destination_->get_hash_ring().hash_lookup(key);
+        send_buffer_[dst_shard_id] << key << msg;
     }
 
     inline const std::vector<MsgT>& get(const DstObjT& obj) {
@@ -70,7 +67,7 @@ class PushChannel : public ChannelBase {
         }
         auto idx = &obj - this->base_obj_addr_getter_();
         if (idx >= recv_buffer_.size()) {                       // resize recv_buffer_ if it is not large enough
-            recv_buffer_.resize(this->obj_list_ptr_->get_size());
+            recv_buffer_.resize(this->destination_->get_size());
         }
         return recv_buffer_[idx];
     }
@@ -97,7 +94,17 @@ class PushChannel : public ChannelBase {
 
     std::vector<std::vector<MsgT>>* get_recv_buffer() { return &recv_buffer_; }
 
+    void set_source(Shard* source) { source_ = source; }
+
+    void set_destination(ObjList<DstObjT>* destination) {
+        destination_ = destination;
+        if (send_buffer_.size() != destination->get_num_shards())
+            send_buffer_.resize(destination->get_num_shards());
+    }
+
    protected:
+    Shard* source_ = nullptr;
+    ObjList<DstObjT>* destination_ = nullptr;
     std::vector<base::BinStream> send_buffer_;
     std::vector<std::vector<MsgT>> recv_buffer_;
     std::function<DstObjT*()> base_obj_addr_getter_;    // TODO(fan) cache the address?

@@ -65,6 +65,7 @@ class AggregatorFactory : public AggregatorFactoryBase {
     void send(AggregatorChannel& channel, std::vector<BinStream>& bin);
     void on_recv(AggregatorChannel& channel, const std::function<void(BinStream&)>& recv);
     AggregatorChannel aggregator_channel_;
+    Shard aggregator_shard_;
 };
 
 }  // namespace lib

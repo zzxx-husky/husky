@@ -25,14 +25,14 @@
 #include "core/hash_ring.hpp"
 #include "core/mailbox.hpp"
 #include "core/objlist.hpp"
-#include "core/worker_info.hpp"
+#include "core/shard.hpp"
 
 namespace husky {
 
 using base::BinStream;
 
 template <typename KeyT, typename ValueT>
-class BroadcastChannel : public ChannelBase {
+class BroadcastChannel : public ChannelBase, public Shard {
    public:
     BroadcastChannel() = default;
 
@@ -50,29 +50,31 @@ class BroadcastChannel : public ChannelBase {
     BroadcastChannel& operator=(BroadcastChannel&&) = default;
 
     void buffer_accessor_setup() {
-        broadcast_buffer_.resize(worker_info_->get_largest_tid() + 1);
+        broadcast_buffer_.resize(get_num_shards());
         accessor_ = AccessorStore::create_accessor<std::unordered_map<KeyT, ValueT>>(
-            channel_id_, local_id_, worker_info_->get_num_local_workers());
+            channel_id_, get_local_shard_id(), source_->get_num_local_shards());
     }
 
     void broadcast(const KeyT& key, const ValueT& value) {
-        for (int i = 0; i < worker_info_->get_num_processes(); ++i) {
-            int recv_proc_num_worker = worker_info_->get_num_local_workers(i);
-            int recver_local_id_ = std::hash<KeyT>()(key) % recv_proc_num_worker;
-            int recver_id = worker_info_->local_to_global_id(i, recver_local_id_);
+        int total_num_shards = 0;
+        for (auto& pid_and_num : get_shard_info()) {
+            int recv_proc_num_shards = pid_and_num.second;
+            int recver_local_id = std::hash<KeyT>()(key) % recv_proc_num_shards;
+            int recver_id = total_num_shards + recver_local_id;
             broadcast_buffer_[recver_id] << key << value;
+            total_num_shards += recv_proc_num_shards;
         }
     }
 
     ValueT& get(const KeyT& key) {
-        auto& dict = (*accessor_)[std::hash<KeyT>()(key) % worker_info_->get_num_local_workers()].access();
+        auto& dict = (*accessor_)[std::hash<KeyT>()(key) % get_num_local_shards()].access();
         auto iter = dict.find(key);
         ASSERT_MSG(iter != dict.end(), "Key Not Found");
         return iter->second;
     }
 
     bool get(const KeyT& key, ValueT* value) {
-        auto& dict = (*accessor_)[std::hash<KeyT>()(key) % worker_info_->get_num_local_workers()].access();
+        auto& dict = (*accessor_)[std::hash<KeyT>()(key) % get_num_local_shards()].access();
         auto iter = dict.find(key);
         if (iter == dict.end())
             return false;
@@ -81,27 +83,32 @@ class BroadcastChannel : public ChannelBase {
     }
 
     bool find(const KeyT& key) {
-        auto& dict = (*accessor_)[std::hash<KeyT>()(key) % worker_info_->get_num_local_workers()].access();
+        auto& dict = (*accessor_)[std::hash<KeyT>()(key) % get_num_local_shards()].access();
         auto iter = dict.find(key);
         return iter != dict.end();
     }
 
     void set_clear_dict(bool clear) { clear_dict_each_progress_ = clear; }
 
-    std::unordered_map<KeyT, ValueT>& get_local_dict() { return (*accessor_)[local_id_].storage(); }
+    std::unordered_map<KeyT, ValueT>& get_local_dict() {
+        return (*accessor_)[get_local_shard_id()].storage();
+    }
 
     void send() override {
         this->inc_progress();
-        int start = global_id_;
+        int start = std::rand();
+        auto shard_info_iter = ShardInfoIter(*this->destination_);
         for (int i = 0; i < broadcast_buffer_.size(); ++i) {
             int dst = (start + i) % broadcast_buffer_.size();
+            auto pid_and_sid = shard_info_iter.next();
             if (broadcast_buffer_[dst].size() == 0)
                 continue;
-            mailbox_->send(dst, channel_id_, progress_, broadcast_buffer_[dst]);
+            mailbox_->send(pid_and_sid.first, pid_and_sid.second,
+                channel_id_, progress_, broadcast_buffer_[dst]);
             broadcast_buffer_[dst].purge();
         }
-        this->mailbox_->send_complete(this->channel_id_, this->progress_, this->worker_info_->get_local_tids(),
-                                      this->worker_info_->get_pids());
+        this->mailbox_->send_complete(this->channel_id_, this->progress_, this->get_num_local_shards(),
+                                      this->get_pids());
     }
 
     void recv() override {
@@ -116,22 +123,25 @@ class BroadcastChannel : public ChannelBase {
                 bin_stream_processor_(&bin);
             }
         }
-        (*accessor_)[local_id_].commit();
+        (*accessor_)[get_local_shard_id()].commit();
     }
+
+    void set_source(Shard* source) { source_ = source; }
 
    protected:
     void leave_accessor() {
-        for (int i = 0; i < worker_info_->get_num_local_workers(); ++i)
+        for (int i = 0; i < accessor_->size(); ++i)
             (*accessor_)[i].leave();
 
         if (clear_dict_each_progress_) {
-            (*accessor_)[local_id_].storage().clear();
-            (*accessor_)[local_id_].commit();
-            for (int i = 0; i < worker_info_->get_num_local_workers(); ++i)
+            (*accessor_)[get_local_shard_id()].storage().clear();
+            (*accessor_)[get_local_shard_id()].commit();
+            for (int i = 0; i < accessor_->size(); ++i)
                 (*accessor_)[i].leave();
         }
     }
 
+    Shard* source_ = nullptr;
     bool clear_dict_each_progress_ = false;
     bool need_leave_accessor_ = false;
     std::vector<BinStream> broadcast_buffer_;

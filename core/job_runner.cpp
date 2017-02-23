@@ -65,7 +65,6 @@ void run_job(const std::function<void()>& job) {
     // Initialize memory_checker
     Context::get_memory_checker()->serve();
 
-    base::SessionLocal::initialize();
     // Initialize worker threads
     std::vector<boost::thread*> threads;
     int local_id = 0;
@@ -79,7 +78,6 @@ void run_job(const std::function<void()>& job) {
             Context::set_global_tid(i);
 
             job();
-            base::SessionLocal::thread_finalize();
 
             base::BinStream finish_signal;
             finish_signal << Context::get_param("hostname") << i;

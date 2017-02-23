@@ -32,9 +32,7 @@ using base::BinStream;
 template <typename MsgT, typename ObjT>
 class AsyncPushChannel : public PushChannel<MsgT, ObjT> {
    public:
-    explicit AsyncPushChannel(ObjList<ObjT>* objlist) : PushChannel<MsgT, ObjT>(objlist, objlist) {
-        this->set_as_async_channel();
-    }
+    AsyncPushChannel() {}
 
     AsyncPushChannel(const AsyncPushChannel&) = delete;
     AsyncPushChannel& operator=(const AsyncPushChannel&) = delete;
@@ -42,7 +40,7 @@ class AsyncPushChannel : public PushChannel<MsgT, ObjT> {
     AsyncPushChannel(AsyncPushChannel&&) = default;
     AsyncPushChannel& operator=(AsyncPushChannel&&) = default;
 
-    void out() override {
+    void send() override {
         // No increment progress id here
         int start = this->global_id_;
         for (int i = 0; i < this->send_buffer_.size(); ++i) {

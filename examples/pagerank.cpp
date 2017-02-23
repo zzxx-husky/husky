@@ -67,19 +67,21 @@ void pagerank() {
     husky::globalize(vertex_list);
 
     // Iterative PageRank computation
-    auto& prch =
-        husky::ChannelStore::create_push_combined_channel<float, husky::SumCombiner<float>>(vertex_list, vertex_list);
+    auto prch =
+        husky::ChannelStore::create_push_combined_channel<float, husky::SumCombiner<float>>(&vertex_list, &vertex_list);
     int numIters = stoi(husky::Context::get_param("iters"));
+    husky::list_execute(vertex_list, {}, {prch}, [](Vertex& v) {});
     for (int iter = 0; iter < numIters; ++iter) {
-        husky::list_execute(vertex_list, [&prch, iter](Vertex& u) {
+        husky::list_execute(vertex_list, {prch}, {prch}, [prch, iter](Vertex& u) {
             if (iter > 0)
-                u.pr = 0.85 * prch.get(u) + 0.15;
+                if (prch->has_msgs(u))
+                    u.pr = 0.85 * prch->get(u) + 0.15;
 
             if (u.adj.size() == 0)
                 return;
             float sendPR = u.pr / u.adj.size();
             for (auto& nb : u.adj) {
-                prch.push(sendPR, nb);
+                prch->push(sendPR, nb);
             }
         });
     }

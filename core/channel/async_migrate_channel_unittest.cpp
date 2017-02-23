@@ -36,7 +36,20 @@ class Obj {
 // Create AsyncMigrateChannel without setting, for setup
 template <typename ObjT>
 AsyncMigrateChannel<ObjT> create_async_migrate_channel(ObjList<ObjT>& obj_list) {
-    AsyncMigrateChannel<ObjT> async_migrate_channel(&obj_list);
+    AsyncMigrateChannel<ObjT> async_migrate_channel;
+    async_migrate_channel.set_source(&obj_list);
+    async_migrate_channel.set_destination(&obj_list);
+    async_migrate_channel.buffer_setup();
+    async_migrate_channel.set_bin_stream_processor([=, dst_list=&obj_list](base::BinStream* bin_stream) {
+        while (bin_stream->size() != 0) {
+            ObjT obj;
+            *bin_stream >> obj;
+            auto idx = dst_list->add_object(std::move(obj));
+            dst_list->process_attribute(*bin_stream, idx);
+        }
+        if (dst_list->get_num_del() * 2 > dst_list->get_vector_size())
+            dst_list->deletion_finalize();
+    });
     return async_migrate_channel;
 }
 
@@ -51,7 +64,7 @@ TEST_F(TestAsyncMigrateChannel, Create) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // WorkerInfo Setup
@@ -64,7 +77,7 @@ TEST_F(TestAsyncMigrateChannel, Create) {
 
     // AsyncMigrateChannel
     auto async_migrate_channel = create_async_migrate_channel(obj_list);
-    async_migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    async_migrate_channel.setup(&mailbox);
 }
 
 TEST_F(TestAsyncMigrateChannel, MigrateOtherIncProgress) {
@@ -78,7 +91,7 @@ TEST_F(TestAsyncMigrateChannel, MigrateOtherIncProgress) {
     el.set_process_id(0);
     CentralRecver recver(&zmq_context, "inproc://test");
     LocalMailbox mailbox(&zmq_context);
-    mailbox.set_thread_id(0);
+    mailbox.set_local_id(0);
     el.register_mailbox(mailbox);
 
     // WorkerInfo Setup
@@ -99,7 +112,7 @@ TEST_F(TestAsyncMigrateChannel, MigrateOtherIncProgress) {
     // AsyncMigrateChannel
     // Round 1
     auto async_migrate_channel = create_async_migrate_channel(obj_list);
-    async_migrate_channel.setup(0, 0, workerinfo, &mailbox);
+    async_migrate_channel.setup(&mailbox);
     // migrate
     Obj* p = obj_list.find(100);
     async_migrate_channel.migrate(*p, 0);  // migrate Obj(18) to thread 0
@@ -109,7 +122,7 @@ TEST_F(TestAsyncMigrateChannel, MigrateOtherIncProgress) {
     while (
         mailbox.poll_with_timeout(async_migrate_channel.get_channel_id(), async_migrate_channel.get_progress(), 1.0)) {
         auto bin_push = mailbox.recv(async_migrate_channel.get_channel_id(), async_migrate_channel.get_progress());
-        async_migrate_channel.in(bin_push);
+        async_migrate_channel.get_bin_stream_processor()(&bin_push);
     }
     Obj& obj = obj_list.get_data()[0];
 
@@ -133,7 +146,7 @@ TEST_F(TestAsyncMigrateChannel, MigrateOtherIncProgress) {
     while (
         mailbox.poll_with_timeout(async_migrate_channel.get_channel_id(), async_migrate_channel.get_progress(), 1.0)) {
         auto bin_push = mailbox.recv(async_migrate_channel.get_channel_id(), async_migrate_channel.get_progress());
-        async_migrate_channel.in(bin_push);
+        async_migrate_channel.get_bin_stream_processor()(&bin_push);
     }
     EXPECT_EQ(obj_list.get_size(), 3);
 }

@@ -17,6 +17,7 @@
 #include "core/hash_ring.hpp"
 #include "core/mailbox.hpp"
 #include "core/worker_info.hpp"
+#include "core/shard.hpp"
 
 namespace husky {
 
@@ -24,10 +25,7 @@ thread_local int ChannelBase::max_channel_id_ = 0;
 
 ChannelBase::ChannelBase() : channel_id_(max_channel_id_), progress_(0) { max_channel_id_ += 1; }
 
-void ChannelBase::setup(size_t local_id, size_t global_id, const WorkerInfo& worker_info, LocalMailbox* mailbox) {
-    set_local_id(local_id);
-    set_global_id(global_id);
-    set_worker_info(worker_info);
+void ChannelBase::setup(LocalMailbox* mailbox) {
     set_mailbox(mailbox);
 }
 

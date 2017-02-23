@@ -30,6 +30,7 @@ add_library(core-objs OBJECT
     memory_checker.cpp
     network.cpp
     objlist_store.cpp
+    shard.cpp
     shuffle_combiner_store.cpp
     worker_info.cpp
     balance.cpp)

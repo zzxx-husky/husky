@@ -16,6 +16,7 @@
 
 #include <time.h>
 
+#include <cstdlib>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -27,7 +28,7 @@
 #include "core/hash_ring.hpp"
 #include "core/mailbox.hpp"
 #include "core/shuffle_combiner_base.hpp"
-#include "core/worker_info.hpp"
+#include "core/shard.hpp"
 #include "core/zmq_helpers.hpp"
 
 namespace husky {
@@ -42,56 +43,50 @@ class PushCombinedChannel : public ChannelBase {
     void pre_send() override {
         // shuffle and combine
         this->shuffle_combiner_impl_->shuffle();
-        this->shuffle_combiner_impl_->combine(&send_buffer_);
+        this->shuffle_combiner_impl_->combine(&bin_stream_buffer_);
     }
 
     void send() override {
-        int start = this->global_id_;
-        for (int i = 0; i < send_buffer_.size(); ++i) {
-            int dst = (start + i) % send_buffer_.size();
-            if (send_buffer_[dst].size() == 0)
-                continue;
-            this->mailbox_->send(dst, this->channel_id_, this->progress_ + 1, send_buffer_[dst]);
-            send_buffer_[dst].purge();
+        int start = std::rand();
+        auto shard_info_iter = ShardInfoIter(*this->destination_);
+        for (int i = 0; i < bin_stream_buffer_.size(); ++i) {
+            int dst = (start + i) % bin_stream_buffer_.size();
+            auto pid_and_sid = shard_info_iter.next();
+            if (bin_stream_buffer_[dst].size() > 0) {
+                this->mailbox_->send(pid_and_sid.first, pid_and_sid.second,
+                    this->channel_id_, this->progress_ + 1, bin_stream_buffer_[dst]);
+                bin_stream_buffer_[dst].purge();
+            }
         }
     }
 
     void post_send() override {
         this->inc_progress();
-        this->mailbox_->send_complete(this->channel_id_, this->progress_, this->worker_info_->get_local_tids(),
-                                      this->worker_info_->get_pids());
+        this->mailbox_->send_complete(this->channel_id_, this->progress_, this->source_->get_num_local_shards(),
+                                      this->destination_->get_pids());
         clear_recv_buffer_();
-    }
-
-    void set_worker_info(const WorkerInfo& worker_info) override {
-        worker_info_.reset(new WorkerInfo(worker_info));
-        if (send_buffer_.size() != worker_info_->get_largest_tid() + 1)
-            send_buffer_.resize(worker_info_->get_largest_tid() + 1);
     }
 
     // The following are specific to this channel type
 
     void set_combiner(ShuffleCombinerBase<MsgT, typename DstObjT::KeyT>* combiner_base) {
         shuffle_combiner_impl_.reset(combiner_base);
-        shuffle_combiner_impl_->set_local_id(local_id_);
         shuffle_combiner_impl_->set_channel_id(channel_id_);
-        shuffle_combiner_impl_->set_worker_info(*(worker_info_.get()));  // FIXME(fan) unsafe
+        shuffle_combiner_impl_->set_source(source_);  // FIXME(fan) unsafe
+        shuffle_combiner_impl_->set_destination(destination_);  // FIXME(zzxx) unsafe?
     }
 
     inline void push(const MsgT& msg, const typename DstObjT::KeyT& key) {
-        int dst_worker_id = this->worker_info_->get_hash_ring().hash_lookup(key);
-        this->shuffle_combiner_impl_->push(msg, key, dst_worker_id);
+        int dst_shard_id = this->destination_->get_hash_ring().hash_lookup(key);
+        this->shuffle_combiner_impl_->push(msg, key, dst_shard_id);
     }
 
     inline const MsgT& get(const DstObjT& obj) {
-        if (this->obj_list_ptr_ == nullptr) {
-            throw base::HuskyException(
-                "Object Address Getter not set and thus cannot get message by providing an object. "
-                "Please use `set_base_obj_addr_getter` first.");
-        }
         auto idx = &obj - this->base_obj_addr_getter_();
-        if (!has_msgs(idx))
+        if (!has_msgs(idx)) {
+            // TODO(???): avoid warning aobut returning reference of local variable
             return MsgT();
+        }
         return get(idx);
     }
 
@@ -119,10 +114,20 @@ class PushCombinedChannel : public ChannelBase {
 
     std::vector<bool>* get_recv_flags() { return &recv_flag_; }
 
+    void set_source(Shard* source) { source_ = source; }
+
+    void set_destination(Shard* destination) {
+        destination_ = destination;
+        if (bin_stream_buffer_.size() != destination->get_num_shards())
+            bin_stream_buffer_.resize(destination->get_num_shards());
+    }
+
    protected:
     void clear_recv_buffer_() { std::fill(recv_flag_.begin(), recv_flag_.end(), false); }
 
-    std::vector<base::BinStream> send_buffer_;
+    Shard* source_ = nullptr;
+    Shard* destination_ = nullptr;
+    std::vector<base::BinStream> bin_stream_buffer_;
     std::vector<MsgT> recv_buffer_;
     std::vector<bool> recv_flag_;
     std::unique_ptr<ShuffleCombinerBase<MsgT, typename DstObjT::KeyT>> shuffle_combiner_impl_;

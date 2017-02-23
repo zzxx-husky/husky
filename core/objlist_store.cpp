@@ -21,11 +21,8 @@
 
 namespace husky {
 
-thread_local int ObjListStore::default_objlist_id = 0;
-thread_local std::unordered_map<std::string, ObjListBase*> ObjListStore::objlist_map;
+std::vector<int*> ObjListStore::default_objlist_id;
+std::vector<std::unordered_map<std::string, ObjListBase*>*> ObjListStore::objlist_map;
 const char* ObjListStore::objlist_name_prefix = "default_objlist_";
-// set finalize_all_objlists priority to Level1, the higher the level, the higher the priority
-static thread_local base::RegSessionThreadFinalizer finalize_all_objlists(base::SessionLocalPriority::Level1,
-                                                                          []() { ObjListStore::drop_all_objlists(); });
 
 }  // namespace husky

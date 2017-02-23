@@ -102,11 +102,14 @@ class WorkerInfo {
 
     void set_hostname(int process_id, const std::string& hostname = "");
 
+    int get_pid_by_hostname(const std::string& hostname) const;
+
     inline void set_process_id(int process_id) { process_id_ = process_id; }
 
    protected:
     std::unordered_map<int, int> global_to_proc_;
     std::vector<std::string> hostname_;
+    std::unordered_map<std::string, int> hostname_to_pid_;
     std::unordered_map<int, std::unordered_map<int, int>> local_to_global_;
     std::unordered_map<int, int> global_to_local_;
     std::unordered_set<int> processes_;
