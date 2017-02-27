@@ -97,7 +97,7 @@ class BroadcastChannel : public ChannelBase, public Shard {
     void send() override {
         this->inc_progress();
         int start = std::rand();
-        auto shard_info_iter = ShardInfoIter(*this->destination_);
+        auto shard_info_iter = ShardInfoIter(*this->destination_, start);
         for (int i = 0; i < broadcast_buffer_.size(); ++i) {
             int dst = (start + i) % broadcast_buffer_.size();
             auto pid_and_sid = shard_info_iter.next();

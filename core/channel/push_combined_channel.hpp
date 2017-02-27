@@ -48,7 +48,7 @@ class PushCombinedChannel : public ChannelBase {
 
     void send() override {
         int start = std::rand();
-        auto shard_info_iter = ShardInfoIter(*this->destination_);
+        auto shard_info_iter = ShardInfoIter(*this->destination_, start);
         for (int i = 0; i < bin_stream_buffer_.size(); ++i) {
             int dst = (start + i) % bin_stream_buffer_.size();
             auto pid_and_sid = shard_info_iter.next();

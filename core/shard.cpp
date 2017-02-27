@@ -31,11 +31,15 @@ void Shard::init(const WorkerInfo& worker_info) {
     // this is important for back compatibility
     if (shard_info_.empty()) {
         // the default configuration of this ShardInfo comes from worker info.
+        num_shards_ = 0;
         for (int id : worker_info.get_pids()) {
             shard_info_.push_back({id, worker_info.get_num_local_workers(id)});
+            if (id == self_pid_) {
+                global_shard_id_ = num_shards_ + local_shard_id_;
+            }
+            num_shards_ += worker_info.get_num_local_workers(id);
         }
         num_local_shards_ = worker_info.get_num_local_workers();
-        num_shards_ = worker_info.get_num_workers();
         hash_ring_ = worker_info.get_hash_ring();
     } else {
         num_shards_ = 0;
@@ -87,9 +91,19 @@ std::vector<int> Shard::get_pids() {
     return pids;
 }
 
-ShardInfoIter::ShardInfoIter(Shard& shard)
+ShardInfoIter::ShardInfoIter(Shard& shard, int offset)
   : shard_(shard),
     shard_info_iter_(shard.get_shard_info().begin()) {
+    offset = offset % shard_.get_num_shards();
+    for (int i = 0; i < offset;) {
+        if (shard_info_iter_->second <= offset - i) {
+            i += shard_info_iter_->second;
+            ++shard_info_iter_;
+        } else {
+            cur_local_shard_id_ += offset - i;
+            i = offset;
+        }
+    }
 }
 
 std::pair<int, int> ShardInfoIter::next() {
@@ -97,6 +111,9 @@ std::pair<int, int> ShardInfoIter::next() {
         cur_local_shard_id_ = -1;
         // assert(shard_info_iter_ == shard_.get_shard_info().end());
         ++shard_info_iter_;
+        if (shard_info_iter_ == shard_.get_shard_info().end()) {
+            shard_info_iter_ = shard_.get_shard_info().begin();
+        }
     }
     return {shard_info_iter_->first, cur_local_shard_id_};
 }

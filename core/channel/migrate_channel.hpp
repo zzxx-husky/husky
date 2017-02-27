@@ -53,7 +53,7 @@ class MigrateChannel : public ChannelBase {
     void send() override {
         this->inc_progress();
         int start = std::rand();
-        auto shard_info_iter = ShardInfoIter(*this->source_obj_list_);
+        auto shard_info_iter = ShardInfoIter(*this->source_obj_list_, start);
         for (int i = 0; i < migrate_buffer_.size(); ++i) {
             int dst = (start + i) % migrate_buffer_.size();
             auto pid_and_sid = shard_info_iter.next();

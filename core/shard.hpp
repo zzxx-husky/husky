@@ -81,7 +81,7 @@ class Shard {
 
 class ShardInfoIter {
    public:
-    ShardInfoIter(Shard& shard);
+    ShardInfoIter(Shard& shard, int offset = 0);
 
     inline int size() { return shard_.get_num_shards(); }
 
