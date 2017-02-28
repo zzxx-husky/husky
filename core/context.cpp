@@ -22,13 +22,13 @@ namespace husky {
 ContextGlobal Context::global_;
 thread_local ContextLocal Context::local_;
 
-void Context::create_mailbox_env() {
+void Context::create_mailbox_env(int max_num_local_mailbox) {
     global_.mailbox_event_loop.reset(new MailboxEventLoop(&global_.zmq_context_));
     global_.mailbox_event_loop->set_process_id(get_process_id());
 
-    global_.local_mailboxes_.resize(get_num_local_workers());
-    int local_tid = 0;
-    for (int local_tid = 0; local_tid < get_num_local_workers(); ++local_tid) {
+    max_num_local_mailbox = max_num_local_mailbox <= 0 ? get_num_local_workers() : max_num_local_mailbox;
+    global_.local_mailboxes_.resize(max_num_local_mailbox);
+    for (int local_tid = 0; local_tid < max_num_local_mailbox; ++local_tid) {
         global_.local_mailboxes_.at(local_tid).reset(new LocalMailbox(&global_.zmq_context_));
         global_.local_mailboxes_.at(local_tid)->set_local_id(local_tid);
         global_.mailbox_event_loop->register_mailbox(*(global_.local_mailboxes_.at(local_tid).get()));

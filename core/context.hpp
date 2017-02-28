@@ -57,7 +57,7 @@ class Context {
     /// This method can only be called after a Husky configuration is loaded.
     /// This will initialize the local mailbox for each thread, as well as setting up the mailbox
     /// event-loop and the mailbox central receiver.
-    static void create_mailbox_env();
+    static void create_mailbox_env(int max_num_local_mailbox = 0);
 
     static LocalMailbox* get_mailbox(int local_tid) { return global_.local_mailboxes_.at(local_tid).get(); }
 
