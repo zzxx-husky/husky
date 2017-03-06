@@ -42,10 +42,11 @@ void HDFSBlockAssigner::master_main_handler() {
     auto& master = Master::get_instance();
     auto master_socket = master.get_socket();
     std::string url, host;
+    int num_shard;
     BinStream stream = zmq_recv_binstream(master_socket.get());
-    stream >> url >> host;
+    stream >> url >> host >> num_shard;
 
-    std::pair<std::string, size_t> ret = answer(host, url);
+    std::pair<std::string, size_t> ret = answer(host, url, num_shard);
     stream.clear();
     stream << ret.first << ret.second;
 
@@ -106,7 +107,7 @@ void HDFSBlockAssigner::browse_hdfs(const std::string& url) {
     hdfsFreeFileInfo(file_info, num_files);
 }
 
-std::pair<std::string, size_t> HDFSBlockAssigner::answer(const std::string& host, const std::string& url) {
+std::pair<std::string, size_t> HDFSBlockAssigner::answer(const std::string& host, const std::string& url, int num_shard) {
     if (!fs_)
         return {"", 0};
 
@@ -120,7 +121,7 @@ std::pair<std::string, size_t> HDFSBlockAssigner::answer(const std::string& host
     auto& files_locality = files_locality_dict[url];
     if (files_locality.size() == 0) {
         finish_dict[url] += 1;
-        if (finish_dict[url] == num_workers_alive)
+        if (finish_dict[url] == num_shard)
             files_locality_dict.erase(url);
         return {"", 0};
     }

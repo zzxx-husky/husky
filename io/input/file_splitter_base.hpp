@@ -25,7 +25,7 @@ namespace io {
 class FileSplitterBase {
    public:
     virtual ~FileSplitterBase() = default;
-    virtual void load(std::string url) = 0;
+    virtual void load(std::string url, int num_shard) = 0;
     virtual boost::string_ref fetch_block(bool is_next = false) = 0;
     virtual size_t get_offset() = 0;
 

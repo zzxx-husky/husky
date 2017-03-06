@@ -36,10 +36,11 @@ void NFSBlockAssigner::master_main_handler() {
     auto& master = Master::get_instance();
     auto resp_socket = master.get_socket();
     std::string url, host;
+    int num_shard;
     BinStream stream = zmq_recv_binstream(resp_socket.get());
-    stream >> url;
+    stream >> url >> host >> num_shard;
 
-    std::pair<std::string, size_t> ret = answer(host, url);
+    std::pair<std::string, size_t> ret = answer(url, num_shard);
     stream.clear();
     stream << ret.first << ret.second;
 
@@ -65,7 +66,7 @@ void NFSBlockAssigner::browse_local(const std::string& url) {
     }
 }
 
-std::pair<std::string, size_t> NFSBlockAssigner::answer(std::string& host, std::string& url) {
+std::pair<std::string, size_t> NFSBlockAssigner::answer(std::string& url, int num_shard) {
     if (finish_dict.find(url) == finish_dict.end())
         browse_local(url);
 
@@ -76,6 +77,9 @@ std::pair<std::string, size_t> NFSBlockAssigner::answer(std::string& host, std::
         file_offset[url] += local_block_size;
     } else {
         finish_dict[url] += 1;
+        if (finish_dict[url] == num_shard) {
+            finish_url(url);
+        }
     }
     return ret;
 }

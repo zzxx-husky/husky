@@ -32,7 +32,7 @@ class HDFSFileSplitter final : public FileSplitterBase {
     virtual ~HDFSFileSplitter();
 
     static void init_blocksize(hdfsFS fs, const std::string& url);
-    void load(std::string url);
+    void load(std::string url, int num_shard);
     boost::string_ref fetch_block(bool is_next = false);
     inline size_t get_offset() { return offset_; }
 
@@ -46,6 +46,7 @@ class HDFSFileSplitter final : public FileSplitterBase {
     hdfsFS fs_;
     size_t offset_ = 0;
     std::string url_;
+    int num_shard_;
 
     static size_t hdfs_block_size;
 };

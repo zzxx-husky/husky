@@ -24,7 +24,7 @@ class NFSBlockAssigner {
     void master_main_handler();
     void master_setup_handler();
     void browse_local(const std::string& url);
-    std::pair<std::string, size_t> answer(std::string& host, std::string& url);
+    std::pair<std::string, size_t> answer(std::string& url, int num_shard);
     /// Return the number of workers who have finished reading the files in
     /// the given url
     int get_num_finished(std::string& url);

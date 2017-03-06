@@ -35,7 +35,7 @@ NFSFileSplitter::NFSFileSplitter() {
 
 NFSFileSplitter::~NFSFileSplitter() { delete[] data_; }
 
-void NFSFileSplitter::load(std::string url) { url_ = url; }
+void NFSFileSplitter::load(std::string url, int num_shard) { url_ = url; num_shard_ = num_shard; }
 
 boost::string_ref NFSFileSplitter::fetch_block(bool is_next) {
     int nbytes;
@@ -45,7 +45,7 @@ boost::string_ref NFSFileSplitter::fetch_block(bool is_next) {
         nbytes = fin_.readsome(data_, nfs_block_size);
     } else {
         base::BinStream question;
-        question << url_;
+        question << url_ << husky::Context::get_param("lostname") << num_shard_;
         base::BinStream answer = husky::Context::get_coordinator()->ask_master(question, husky::TYPE_LOCAL_BLK_REQ);
         std::string fn;
         answer >> fn;

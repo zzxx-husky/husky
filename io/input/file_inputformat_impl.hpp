@@ -65,7 +65,7 @@ class FileInputFormatImpl : public InputFormatBase {
         } else {
             ASSERT_MSG(false, ("Unknown protocol given to LineInputFormat: " + protocol).c_str());
         }
-        splitter_->load(url_.substr(prefix + 3));
+        splitter_->load(url_.substr(prefix + 3), this->get_num_shards());
     }
 
    protected:

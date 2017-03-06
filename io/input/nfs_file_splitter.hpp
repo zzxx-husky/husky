@@ -29,7 +29,7 @@ class NFSFileSplitter final : public FileSplitterBase {
     NFSFileSplitter();
     virtual ~NFSFileSplitter();
 
-    void load(std::string url);
+    void load(std::string url, int num_shard);
     virtual boost::string_ref fetch_block(bool is_next = false);
     inline size_t get_offset() { return offset_; }
 
@@ -41,6 +41,7 @@ class NFSFileSplitter final : public FileSplitterBase {
     std::string cur_fn;
     size_t offset_;
     char* data_;
+    int num_shard_;
 
     static int nfs_block_size;
 };

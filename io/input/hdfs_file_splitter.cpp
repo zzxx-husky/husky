@@ -50,7 +50,7 @@ void HDFSFileSplitter::init_blocksize(hdfsFS fs_, const std::string& url) {
     throw base::HuskyException("Block size init error. (File NOT exist or EMPTY directory)");
 }
 
-void HDFSFileSplitter::load(std::string url) {
+void HDFSFileSplitter::load(std::string url, int num_shard) {
     // init url, fs_, hdfs_block_size
     url_ = url;
     // init fs_
@@ -61,6 +61,8 @@ void HDFSFileSplitter::load(std::string url) {
     hdfsFreeBuilder(builder);
     base::call_once_each_time(init_blocksize, fs_, url_);
     data_ = new char[hdfs_block_size];
+    // number of shards
+    num_shard_ = num_shard;
 }
 
 boost::string_ref HDFSFileSplitter::fetch_block(bool is_next) {
@@ -76,7 +78,7 @@ boost::string_ref HDFSFileSplitter::fetch_block(bool is_next) {
     } else {
         // Ask the master for a new block
         BinStream question;
-        question << url_ << husky::Context::get_param("hostname");
+        question << url_ << husky::Context::get_param("lostname") << num_shard_;
         BinStream answer = husky::Context::get_coordinator()->ask_master(question, husky::TYPE_HDFS_BLK_REQ);
         std::string fn;
         answer >> fn;
