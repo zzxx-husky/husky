@@ -168,6 +168,8 @@ void LocalMailbox::send_complete(int channel_id, int progress, int num_local_sen
 CentralRecver::CentralRecver(zmq::context_t* zmq_context, const std::string& bind_addr)
     : zmq_context_(zmq_context), comm_recver_(*zmq_context_, ZMQ_PULL) {
     bind_addr_ = bind_addr;
+    int rcv_hwm = 0;
+    comm_recver_.setsockopt(ZMQ_RCVHWM, &rcv_hwm, sizeof(int));
     comm_recver_.bind(bind_addr_);
     event_loop_connector_ = new EventLoopConnector(zmq_context_);
     recver_thread_ = new std::thread([&]() { serve(); });
@@ -213,6 +215,8 @@ void CentralRecver::serve() {
 
 MailboxEventLoop::MailboxEventLoop(zmq::context_t* zmq_context)
     : zmq_context_(zmq_context), event_recver_(*zmq_context_, ZMQ_PULL) {
+    int rcv_hwm = 0;
+    event_recver_.setsockopt(ZMQ_RCVHWM, &rcv_hwm, sizeof(int));
     event_recver_.bind(kEventLoopListenAddress);
 
     // register event handlers
