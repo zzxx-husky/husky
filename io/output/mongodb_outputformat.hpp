@@ -34,6 +34,7 @@ class MongoDBOutputFormat final : public OutputFormatBase {
     virtual bool is_setup() const;
 
     bool commit(const std::string& doc);
+    bool commit(const mongo::BSONObj& obj);
     void flush_all();
 
    protected:

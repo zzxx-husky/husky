@@ -79,6 +79,21 @@ bool MongoDBOutputFormat::commit(const std::string& doc) {
     return true;
 }
 
+bool MongoDBOutputFormat::commit(const mongo::BSONObj& obj) {
+    if (!is_setup())
+        return false;
+
+    if (obj.isEmpty())
+        return false;
+
+    records_vector_.push_back(obj.copy());
+
+    if (records_vector_.size() >= kMaxNumberOfRecord)
+        flush_all();
+
+    return true;
+}
+
 void MongoDBOutputFormat::flush_all() {
     if (!is_setup())
         throw husky::base::HuskyException("MongoDBOutputFormat not setup correctly!");
