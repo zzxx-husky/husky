@@ -41,8 +41,6 @@ void Config::set_master_host(const std::string& master_host) { master_host_ = ma
 
 void Config::set_master_port(const int& master_port) { master_port_ = master_port; }
 
-void Config::set_comm_port(const int& comm_port) { comm_port_ = comm_port; }
-
 void Config::set_param(const std::string& key, const std::string& value) { params_[key] = value; }
 
 void Config::set_log_dir(const std::string& log_dir) { log_dir_ = log_dir; }
@@ -58,14 +56,14 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
     config_file_options.add_options()("conf,C", po::value<std::string>(&config_file_path), "Configure file Path");
 
     std::string master_host;
-    int master_port;
-    int comm_port;
+    int master_port, proc_id;
     std::string log_dir;
     po::options_description required_options("Required options");
-    required_options.add_options()("master_host", po::value<std::string>(&master_host), "Master hostname")(
-        "master_port", po::value<int>(&master_port), "Master port")(
-        "comm_port", po::value<int>(&comm_port), "Communication port")("log_dir", po::value<std::string>(&log_dir),
-                                                                       "Log directory");
+    required_options.add_options()
+        ("master_host", po::value<std::string>(&master_host), "Master hostname")
+        ("master_port", po::value<int>(&master_port), "Master port")
+        ("log_dir", po::value<std::string>(&log_dir), "Log directory")
+        ("proc_id", po::value<int>(&proc_id), "Process id");
 
     po::options_description worker_info_options("Worker Info options");
     worker_info_options.add_options()("worker.info", po::value<std::vector<std::string>>()->multitoken(),
@@ -121,6 +119,12 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
         LOG_E << "arg master_host is needed";
     }
 
+    if (vm.count("proc_id")) {
+        proc_id_ = proc_id;
+    } else {
+        LOG_E << "proc_id is needed";
+    }
+
     if (vm.count("master_port")) {
         set_master_port(master_port);
         setup_all += 1;
@@ -128,19 +132,11 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
         LOG_E << "arg master_port is needed";
     }
 
-    if (vm.count("comm_port")) {
-        set_comm_port(comm_port);
-        setup_all += 1;
-    } else {
-        LOG_E << "arg comm_port is needed";
-    }
-
     if (vm.count("log_dir"))
         set_log_dir(log_dir);
 
     if (vm.count("worker.info")) {
         std::string hostname = get_hostname();
-        int proc_id = -1;
         int num_workers = 0;
         int num_local_threads = 0;
         int num_global_threads = 0;
@@ -155,9 +151,8 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
             std::string worker_hostname = w.substr(0, colon_pos);
             machines_.insert(worker_hostname);
             int num_threads = std::stoi(w.substr(colon_pos + 1, w.size() - colon_pos - 1));
-            if (is_local(worker_hostname)) {
+            if (num_workers == proc_id_) {
                 num_local_threads = num_threads;
-                proc_id = num_workers;
             }
             if (worker_info != nullptr)
                 worker_info->set_hostname(num_workers, worker_hostname);
@@ -169,7 +164,7 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
             num_workers += 1;
         }
         if (worker_info != nullptr)
-            worker_info->set_process_id(proc_id);
+            worker_info->set_process_id(proc_id_);
         set_param("hostname", hostname);
         setup_all += 1;
     } else {
@@ -186,7 +181,7 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
             }
     }
 
-    if (setup_all != customized.size() + 4) {
+    if (setup_all != customized.size() + 3) {
         LOG_E << "Please provide all necessary args!";
         return false;
     }

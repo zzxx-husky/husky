@@ -15,7 +15,7 @@
 
 include_directories(${PROJECT_SOURCE_DIR} ${HUSKY_EXTERNAL_INCLUDE})
 
-set(master_plugins nfs_assigner.cpp progress_tracker.cpp nfs_binary_assigner.cpp)
+set(master_plugins nfs_assigner.cpp progress_tracker.cpp nfs_binary_assigner.cpp proc_port_collector.cpp)
 
 if(LIBHDFS3_FOUND)
     list(APPEND master_plugins hdfs_assigner.cpp hdfs_binary_assigner.cpp)

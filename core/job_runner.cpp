@@ -58,9 +58,9 @@ void run_job(const std::function<void()>& job) {
         return;
     }
 
-    Context::create_mailbox_env();
     // Initialize coordinator
     Context::get_coordinator()->serve();
+    Context::create_mailbox_env();
 
     // Initialize memory_checker
     Context::get_memory_checker()->serve();

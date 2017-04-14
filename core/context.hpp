@@ -61,8 +61,6 @@ class Context {
 
     static LocalMailbox* get_mailbox(int local_tid) { return global_.local_mailboxes_.at(local_tid).get(); }
 
-    static std::string get_recver_bind_addr() { return "tcp://*:" + std::to_string(global_.config.get_comm_port()); }
-
     static std::string get_param(const std::string& key) { return global_.config.get_param(key); }
 
     static std::string get_log_dir() { return global_.config.get_log_dir(); }

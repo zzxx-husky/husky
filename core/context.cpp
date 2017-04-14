@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include "core/constants.hpp"
+
 namespace husky {
 
 ContextGlobal Context::global_;
@@ -34,12 +36,17 @@ void Context::create_mailbox_env(int max_num_local_mailbox) {
         global_.mailbox_event_loop->register_mailbox(*(global_.local_mailboxes_.at(local_tid).get()));
     }
 
-    for (int proc_id = 0; proc_id < get_num_processes(); proc_id++) {
+    global_.central_recver.reset(new CentralRecver(get_zmq_context()));
+    // send the bind port of central recver to master
+    base::BinStream port_info;
+    port_info << global_.central_recver->get_bind_port() << get_process_id() << get_num_processes();
+    // this will block until master receives all the ports
+    base::BinStream peer_ports = get_coordinator()->ask_master(port_info, TYPE_PROC_PORT);
+    for (int proc_id = 0, peer_comm_port; proc_id < get_num_processes(); proc_id++) {
+        peer_ports >> peer_comm_port;
         global_.mailbox_event_loop->register_peer_recver(proc_id, "tcp://" + global_.worker_info.get_hostname(proc_id) +
-                                                                      ":" +
-                                                                      std::to_string(global_.config.get_comm_port()));
+                                                                      ":" + std::to_string(peer_comm_port));
     }
-    global_.central_recver.reset(new CentralRecver(get_zmq_context(), get_recver_bind_addr()));
 }
 
 }  // namespace husky
