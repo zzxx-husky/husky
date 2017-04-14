@@ -31,13 +31,11 @@ class Config {
 
     void set_master_host(const std::string& master_host);
     void set_master_port(const int& master_port);
-    void set_comm_port(const int& comm_port);
     void set_param(const std::string& key, const std::string& value);
     void set_log_dir(const std::string& log_dir);
 
     inline std::string get_master_host() const { return master_host_; }
     inline int get_master_port() const { return master_port_; }
-    inline int get_comm_port() const { return comm_port_; }
     inline int get_num_machines() const { return machines_.size(); }
     inline std::set<std::string> get_machines() { return machines_; }
     inline std::string get_log_dir() const { return log_dir_; }
@@ -56,7 +54,6 @@ class Config {
     // TODO(legend): add boolean for validation.
     std::string master_host_ = "";
     int master_port_ = -1;
-    int comm_port_ = -1;
     std::set<std::string> machines_;
     std::map<std::string, std::string> params_;
     std::string log_dir_;

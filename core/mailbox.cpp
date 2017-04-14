@@ -167,10 +167,30 @@ void LocalMailbox::send_complete(int channel_id, int progress, int num_local_sen
 
 CentralRecver::CentralRecver(zmq::context_t* zmq_context, const std::string& bind_addr)
     : zmq_context_(zmq_context), comm_recver_(*zmq_context_, ZMQ_PULL) {
-    bind_addr_ = bind_addr;
     int rcv_hwm = 0;
     comm_recver_.setsockopt(ZMQ_RCVHWM, &rcv_hwm, sizeof(int));
-    comm_recver_.bind(bind_addr_);
+    if (bind_addr.empty()) {
+        int try_time = 100000;
+        while (try_time--) {
+            bind_port_ = rand() % (65536 - 10000) + 10000;
+            bind_addr_ = "tcp://*:" + std::to_string(bind_port_);
+            try {
+                comm_recver_.bind(bind_addr_);
+            } catch (zmq::error_t err) {
+                if (err.num() == 98) // 98 is the errno for address already in use
+                    continue;
+                throw;
+            }
+            break;
+        }
+        if (try_time == -1) {
+            // finally cannot find a valid port
+            throw base::HuskyException("CentralRecver failed to find a valid port to bind");
+        }
+    } else {
+        bind_addr_ = bind_addr;
+        comm_recver_.bind(bind_addr_);
+    }
     event_loop_connector_ = new EventLoopConnector(zmq_context_);
     recver_thread_ = new std::thread([&]() { serve(); });
 }
@@ -189,6 +209,10 @@ CentralRecver::~CentralRecver() {
 
     delete recver_thread_;
     delete event_loop_connector_;
+}
+
+int CentralRecver::get_bind_port() {
+    return bind_port_;
 }
 
 void CentralRecver::serve() {

@@ -175,10 +175,12 @@ class LocalMailbox {
 class CentralRecver {
    public:
     // Create the recver thread and recver socket
-    CentralRecver(zmq::context_t* zmq_context, const std::string& bind_addr);
+    CentralRecver(zmq::context_t* zmq_context, const std::string& bind_addr = "");
 
     // Join the thread and free resources
     virtual ~CentralRecver();
+
+    int get_bind_port();
 
    protected:
     void serve();
@@ -187,6 +189,7 @@ class CentralRecver {
     zmq::socket_t comm_recver_;
     std::thread* recver_thread_;
     std::string bind_addr_;
+    int bind_port_ = -1;
     EventLoopConnector* event_loop_connector_;
 };
 

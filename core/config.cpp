@@ -41,8 +41,6 @@ void Config::set_master_host(const std::string& master_host) { master_host_ = ma
 
 void Config::set_master_port(const int& master_port) { master_port_ = master_port; }
 
-void Config::set_comm_port(const int& comm_port) { comm_port_ = comm_port; }
-
 void Config::set_param(const std::string& key, const std::string& value) { params_[key] = value; }
 
 void Config::set_log_dir(const std::string& log_dir) { log_dir_ = log_dir; }
@@ -59,12 +57,10 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
 
     std::string master_host;
     int master_port;
-    int comm_port;
     std::string log_dir;
     po::options_description required_options("Required options");
     required_options.add_options()("master_host", po::value<std::string>(&master_host), "Master hostname")(
-        "master_port", po::value<int>(&master_port), "Master port")(
-        "comm_port", po::value<int>(&comm_port), "Communication port")("log_dir", po::value<std::string>(&log_dir),
+        "master_port", po::value<int>(&master_port), "Master port")("log_dir", po::value<std::string>(&log_dir),
                                                                        "Log directory");
 
     po::options_description worker_info_options("Worker Info options");
@@ -128,13 +124,6 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
         LOG_E << "arg master_port is needed";
     }
 
-    if (vm.count("comm_port")) {
-        set_comm_port(comm_port);
-        setup_all += 1;
-    } else {
-        LOG_E << "arg comm_port is needed";
-    }
-
     if (vm.count("log_dir"))
         set_log_dir(log_dir);
 
@@ -186,7 +175,7 @@ bool Config::init_with_args(int ac, char** av, const std::vector<std::string>& c
             }
     }
 
-    if (setup_all != customized.size() + 4) {
+    if (setup_all != customized.size() + 3) {
         LOG_E << "Please provide all necessary args!";
         return false;
     }
